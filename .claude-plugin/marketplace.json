@@ -1,0 +1,13 @@
+{
+  "name": "sdd-toolkit",
+  "owner": {
+    "name": "Norbert Suski"
+  },
+  "plugins": [
+    {
+      "name": "sdd-skills",
+      "source": "./",
+      "description": "Spec-driven development (SDD) skill family for Claude Code"
+    }
+  ]
+}

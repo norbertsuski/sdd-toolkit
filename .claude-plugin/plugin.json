@@ -1,0 +1,9 @@
+{
+  "name": "sdd-skills",
+  "version": "0.2.0",
+  "description": "Spec-driven development (SDD) skill family for Claude Code",
+  "author": {
+    "name": "Norbert Suski"
+  },
+  "repository": "https://gitlab.com/norbert.suski/sdd-toolkit"
+}
