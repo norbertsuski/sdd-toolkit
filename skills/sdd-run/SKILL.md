@@ -5,7 +5,7 @@ description: >
   result — the Agent Factory entrypoint for the sdd-* family. Inspects the
   change's lifecycle state, routes through missing preparation (frame /
   research / plan), selects an execution strategy (single-agent, sequential
-  multi-agent, or parallel DAG), constructs ephemeral scoped workers when — and
+  multi-agent, or multi-agent DAG), constructs ephemeral scoped workers when — and
   only when — decomposition pays for itself, coordinates their execution,
   verifies independently, and resumes after interruption. Use when the user
   says "run this change", "drive the change end to end", "sdd run", "execute
@@ -30,7 +30,7 @@ SPEC / CHANGE
  inspect state          (change.md status + artifacts on disk)
  route missing prep     (frame / research / plan — owning skills, never invented here)
  analyze the plan       (phases, files, dependencies)
- select strategy        (single-agent default · sequential · parallel DAG)
+ select strategy        (single-agent default · sequential · multi-agent DAG)
  construct workers      (ephemeral, task-derived — only when strategy is multi-agent)
  execute                (existing executor contracts: /sdd-implement, /sdd-goal-implement)
  verify independently   (existing review dimensions)
@@ -52,9 +52,9 @@ This skill operates under the `CONTEXT_ROOT` it resolves for the given change-id
 |---|---|
 | `/sdd-new`, `/sdd-frame`, `/sdd-research`, `/sdd-plan`, `/sdd-plan-review` | Preparation stages. The factory **routes** to them when their artifact is missing; it never generates frame/research/plan content itself (they are interview-driven by design — never invent). |
 | `/sdd-implement` | The attended single-agent executor. The factory hands the session to its process for single-agent attended runs, and reuses its phase-end commit ritual verbatim when committing worker output. |
-| `/sdd-goal-implement` | The unattended executor. Source of the factory's non-interaction policy, per-phase gate stack, mismatch taxonomy, 2-attempt self-fix budget, and STOP block. Workers execute one phase under this contract. |
-| `/sdd-tdd`, `/sdd-e2e` | Execution variants. When the user asks for test-first or browser-level execution, the factory routes the relevant phases to them instead of `/sdd-implement`. |
-| `/sdd-impl-review`, `/sdd-impl-review-ci` | Independent verification. Attended runs hand off to `/sdd-impl-review`; unattended runs dispatch a reviewer subagent applying the dimensions in `../sdd-impl-review-ci/references/impl-review-instructions.md`. |
+| `/sdd-goal-implement` | The unattended executor. Source of the factory's non-interaction policy, gate stack, mismatch taxonomy, 2-attempt self-fix budget, and STOP block. Workers execute one phase under a scoped subset of this contract (criteria gates only); the factory itself runs the rest of the gate stack — staging, break-check, repo-wide checks, commit — at integration. |
+| `/sdd-tdd`, `/sdd-e2e` | Execution variants. When the user asks for test-first or browser-level execution, the factory routes the relevant phases to them instead of `/sdd-implement`; their own eligibility gates rule. |
+| `/sdd-impl-review`, `/sdd-impl-review-ci` | Independent verification — part of the factory's completion contract (Step 8). Attended runs run `/sdd-impl-review`; unattended runs dispatch a reviewer subagent applying `../sdd-impl-review-ci/references/impl-review-instructions.md`, including its APPROVED / NEEDS ATTENTION / REJECTED verdict model. |
 | `/sdd-mr`, `/sdd-archive` | Downstream closeout. The factory names them in its final report; it does not run them unasked. |
 | `/sdd-help` | Read-only sibling. `/sdd-help` reports state and recommends; `/sdd-run` acts on that same derivation. |
 
@@ -84,11 +84,13 @@ Route on the first matching row:
 |---|---|---|
 | No change folder | Offer to run `/sdd-new <change-id>` now (inline), or hand off | STOP — print `Missing prerequisite: change folder. Run /sdd-new <change-id>.` |
 | Folder exists, no `plan.md`, intent (the `change.md` title + `## Notes`) looks bug/scope-shaped (per `/sdd-new`'s signal list) and no `frame.md` | Recommend `/sdd-frame <change-id>` first; offer inline run or skip to planning | STOP — `Missing prerequisite: framing. Run /sdd-frame <change-id> interactively.` |
+| No `plan.md`, no `research.md`, and the change is non-trivial in unfamiliar territory (intent names meaningful codebase exploration, an unfamiliar subsystem, or broad architectural surface — the same signal `/sdd-new` uses to suggest research) | Recommend `/sdd-research <change-id>` before planning; offer inline run or skip to planning (research is optional by family rule — `/sdd-plan` runs fine without it, it just asks more) | STOP — `Missing prerequisite: plan.md. Run /sdd-plan <change-id> interactively (consider /sdd-research <change-id> first).` |
 | No `plan.md` | Run `/sdd-plan <change-id>` inline (it interviews the user), or hand off via clipboard | STOP — `Missing prerequisite: plan.md. Run /sdd-plan <change-id> interactively.` |
 | `plan.md` exists, no `reviews/plan-review.md`, status `planned` | Ask once: proceed to execution, or run `/sdd-plan-review <change-id>` first (recommended when the plan has many phases or a wide blast radius). After an inline review completes and its findings are triaged, re-enter this routing | Proceed, and record `plan-review: skipped` in the run report (matches `/sdd-goal-implement`, which does not require review) |
-| `plan.md` with pending `## Progress` rows | **Execution path** — continue to Step 3 | Same |
-| `## Progress` fully `[x]`, no impl-review | Offer `/sdd-impl-review <change-id>`; then name `/sdd-mr` / `/sdd-archive` | Run the unattended verification of Step 8, then report |
-| `## Progress` fully `[x]`, review exists | Report done; name `/sdd-mr <change-id>` (or `/sdd-archive <change-id>` if merged) and STOP | Same, non-interactively |
+| `plan.md` with pending `#### Automated` rows | **Execution path** — continue to Step 3 | Same |
+| Only `#### Manual` rows pending (all Automated `[x]`) | No executable work — present the pending manual checklist and gate on it (this is the phase pause a human resolves); then continue to the completed-rows routing below | No dispatch (there is no automated worker to send — matches `/sdd-goal-implement`, where implementation completes on Automated rows). Run Step 8 verification if not yet done, surface the manual rows as the report's human checklist, and STOP — never loop |
+| All Automated `[x]`, no impl-review | Run Step 8 verification (`/sdd-impl-review <change-id>`); then name `/sdd-mr` / `/sdd-archive` | Run the unattended verification of Step 8, then report |
+| All Automated `[x]`, review exists | Report done; name `/sdd-mr <change-id>` (or `/sdd-archive <change-id>` if merged) and STOP | Same, non-interactively |
 
 Routing to an interactive prep skill **inline** means invoking that skill's process in this same session with the user present — its questions, its artifacts, its gates, unchanged. When the user prefers a fresh context, use the family's clipboard handoff instead (copy the command, tell them to `/clear` and run it, STOP). Never generate a frame, research doc, or plan by shortcut: thin prep produces exactly the misframed work the prep skills exist to prevent.
 
@@ -105,7 +107,7 @@ Read `plan.md` fully (never limit/offset), plus every artifact it references (`r
 
 Completed phases (`[x]`) are **done** — trust them (re-verify only if something looks off, per `/sdd-implement`'s resume rule). The **work-list** is every phase with pending `#### Automated` rows, matching `/sdd-goal-implement`'s resume rule. A phase whose only pending rows are Manual is not executable work: attended runs gate on it at that phase's manual-verification pause; unattended runs surface it on the report's human checklist and move on.
 
-If `factory-log.md` exists in the change folder (a previous factory run), read its last run record. When its **plan fingerprint** matches the current plan (fingerprint = a hash of `plan.md` with the `## Progress` section stripped — Progress churn must not read as a plan change), **reuse the recorded dependency graph** and re-select the strategy over the *remaining* phases in Step 5 (a resumed parallel DAG with one phase left is just single-agent — expected, not a downgrade). On a fingerprint mismatch, re-derive everything.
+If `factory-log.md` exists in the change folder (a previous factory run), read its last run record. When its **plan fingerprint** matches the current plan (fingerprint = a hash of `plan.md` with the `## Progress` section stripped — Progress churn must not read as a plan change), **reuse the recorded dependency graph** and re-select the strategy over the *remaining* phases in Step 5 (a resumed multi-agent DAG with one phase left is just single-agent — expected, not a downgrade). On a fingerprint mismatch, re-derive everything.
 
 ### Step 4: Build the phase dependency graph
 
@@ -125,86 +127,104 @@ Apply `references/strategy-selection.md`. The three strategies:
 |---|---|---|
 | **single-agent** | This session (or one worker) executes all pending phases in order under the existing executor contract. | **Always the default.** Few phases, overlapping files, a linear graph, or small per-phase scope. |
 | **sequential multi-agent** | One ephemeral worker per phase, run one at a time, each with fresh scoped context. | Phases are heavy/context-poisoning (long plans, large file sets) but still dependent — fresh context per phase beats one long session. |
-| **parallel DAG** | Independent phases run as concurrent workers per DAG wave; dependent phases wait. | ≥2 provably independent phases, each substantial (multiple files or an independent subsystem), and coordination cost < wall-clock benefit. |
+| **multi-agent DAG** | One ephemeral worker per phase, executed in DAG order. Independence buys failure isolation (a stopped phase never blocks a genuinely independent sibling) and honest integration waves — **not concurrent dispatch; workers run one at a time** (see Step 6, invariant 3, for why). | ≥2 provably independent phases, each substantial (multiple files or an independent subsystem). |
 
 Multi-agent execution is **never automatic**. `rename a prop + update components + fix tests` is a single-agent job however its plan slices the phases. Print the decision in one block so it is explainable and lands in `factory-log.md`:
 
 ```
-Strategy: parallel DAG
+Strategy: multi-agent DAG
 Why: P2 (API) and P3 (frontend) touch disjoint file sets with no cross
      references; both are multi-file. P1 must land first (schema they
-     both consume); P4 integrates both.
+     both consume); P4 integrates both. Execution is serialized;
+     the graph isolates failures between P2 and P3.
 Graph: P1 → {P2 ∥ P3} → P4
 ```
 
+Validate the graph before executing: an unknown phase in a `**Depends on**:` line, or a dependency cycle, is a plan defect — print the STOP block (structural) naming it; the fix belongs in the plan.
+
 ### Step 6: Construct workers (multi-agent strategies only)
 
-For each phase that will run as a worker, derive an **ephemeral worker spec** — from the actual task, never from a fixed persona catalog — per `references/worker-contract.md`. Each spec names: goal (the one phase), scoped context (that phase's plan block, the plan's header sections, relevant research/frame excerpts, `lessons.md`, the phase's files), the skill contract it executes under (`/sdd-goal-implement`'s per-phase gates), a **write scope** (the phase's declared files + their tests; new files only within it), success criteria, and termination conditions (success · unrecoverable failure · self-fix budget exhausted · policy requires a human).
+For each phase that will run as a worker, derive an **ephemeral worker spec** — from the actual task, never from a fixed persona catalog — per `references/worker-contract.md`. Each spec names: goal (the one phase), scoped context (that phase's plan block, the plan's header sections, relevant research/frame excerpts, `lessons.md`, the phase's files), the skill contract it executes under (a scoped subset of `/sdd-goal-implement`'s rules — mismatch taxonomy, self-fix budget, criteria gates; staging, break-check, and commits stay with the factory), a **write scope** (the phase's declared files + their tests; new files only within it), success criteria, and termination conditions (success · unrecoverable failure · self-fix budget exhausted · policy requires a human).
 
-Two invariants make parallel execution safe without extra infrastructure:
+Three invariants keep multi-agent execution safe without extra infrastructure:
 
-1. **Workers never write `plan.md`, never write `factory-log.md`, and never commit.** They implement, run their phase-scoped gates, and return a structured WORKER REPORT (format in the reference).
-2. **The factory is the sole writer of `## Progress` and the sole author of commits.** After each worker returns it verifies the report, flips that phase's Progress rows, and runs the existing phase-end commit ritual (`/sdd-implement` attended · `/sdd-goal-implement` unattended) over the worker's touched-file set — sequentially, even for a parallel wave. Per-phase Conventional Commits, SHA write-back, and `change.md` bumps all stay byte-identical to the existing contract.
-
-Parallelism is additionally gated on disjoint write scopes (Step 4), so concurrent workers share the working tree safely. Git worktrees are deliberately **not** used: with disjoint scopes they solve no concurrency problem here, and their merge/reconciliation cost is exactly the overengineering this family avoids. (If a host offers worktree isolation and a future need arises — e.g. workers that must run mutually interfering build steps — that is the extension point; see the reference's "Host capabilities".)
+1. **Workers never write `plan.md`, never write `factory-log.md`, never run any git command that mutates state (no staging, no commits), and never perform the deliberate-break check.** They implement, run their phase's success-criteria commands, and return a structured WORKER REPORT (format in the reference).
+2. **The factory is the sole writer of `## Progress`, the sole author of commits, and the owner of the full gate stack at integration.** After each worker returns it verifies the report, then runs `/sdd-goal-implement`'s gate-stack steps 2–5 over the worker's touched set — stage, deliberate-break check, repo-wide checks, commit ritual (`/sdd-implement` attended · `/sdd-goal-implement` unattended). Staging *before* the break-check is what makes the break-check's restore exact — the same reason that order exists in `/sdd-goal-implement`; a worker running the break-check unstaged would restore HEAD over its own implementation. Per-phase Conventional Commits, SHA write-back, and `change.md` bumps stay byte-identical to the existing contract.
+3. **Workers execute one at a time, even inside a DAG wave.** Write scopes are disjoint, but write isolation is not runtime isolation: a phase's success-criteria commands may legitimately be repo-wide (`npm run typecheck` is a stock plan criterion), builds share caches and generated artifacts, and test runs observe the whole tree — a concurrent sibling would see half-finished work. The host's worktree isolation could give true runtime isolation, but a fresh worktree lacks installed dependencies and build state, and merging results back is machinery this family refuses; serial execution costs only wall-clock and buys correctness. The DAG still earns its keep: dependency-true ordering, failure isolation between independent siblings (Step 9), and integration waves.
 
 ### Step 7: Execute
 
-**Dirty-tree preflight (any strategy).** Before executing, check `git status --porcelain` against the pending phases' file sets. Uncommitted modifications inside a pending phase's scope are leftovers of an interrupted run: attended → the existing dirty-path prompt (keep and continue from them, or restore); unattended → restore that scope to HEAD (tracked files via `git checkout -- <paths>`; untracked files the prior run created inside the scope are deleted) and narrate `RESTORED: <paths>` — a fresh worker must not build on unverified debris. Dirty paths *outside* every pending scope are never touched: list them as `DIRTY (not staged)` per `/sdd-goal-implement`.
+**Dirty-tree preflight (any strategy).** Before executing, check `git status --porcelain` against the pending phases' file sets. Uncommitted changes inside a pending phase's scope **have no provenance** — they may be leftovers of an interrupted run, or the user's own uncommitted work; a path overlap proves nothing. The factory never destroys work on an assumption:
+
+- **Attended** → present the paths via the existing dirty-path prompt: continue on top of them, restore them (the human vouches they are factory leftovers), or abort to sort it out manually.
+- **Unattended** → **STOP**. Print the dirty paths and: `Cannot start unattended: uncommitted changes overlap pending phase scopes. Commit, stash, or clean them — or run /sdd-run <change-id> attended.` No `git checkout`, no deletion, ever, on preflight.
+
+Dirty paths *outside* every pending scope are never touched either way: list them as `DIRTY (not staged)` per `/sdd-goal-implement`. The only restore the factory ever performs itself is the mid-run replacement-worker restore (Step 9), where provenance is certain: the preflight guaranteed a clean scope at dispatch, so everything dirty in a just-failed worker's scope is that worker's output.
 
 **single-agent**: hand execution to the existing executor for all pending phases, inline in this session — attended → follow `/sdd-implement`'s process (manual gates, commit approvals, next-phase decisions); unattended → follow `/sdd-goal-implement`'s process (gate stack, narrated verdicts, autonomous commit ritual). Add `factory-log.md` to the touched-file set of **every** phase committed in this run, so the factory's record always lands with the change. This path adds nothing on top of the executors — that is the point.
 
-**sequential multi-agent / parallel DAG**: walk the DAG in waves (a wave = all pending phases whose dependencies are complete). A **single-phase wave executes inline** (the executor process above, one phase) — dispatch overhead buys nothing there; only multi-phase waves dispatch workers.
+**sequential multi-agent / multi-agent DAG**: walk the DAG in waves (a wave = all pending phases whose dependencies are complete). Within a wave, execute **one phase at a time** (invariant 3 in Step 6). A **single-phase wave executes inline** (the executor process above, one phase) — dispatch overhead buys nothing there; only multi-phase waves dispatch workers. Per phase, in wave order:
 
-1. Dispatch the wave's workers via the host's subagent mechanism (`subagent_type: "general-purpose"`), all in one message. Each gets exactly its spec from Step 6 — not the whole repo, not the full conversation.
-2. Wait for the wave. Then integrate serially, in phase order, one phase at a time:
-   - **Verify the report**: gates narrated green; touched files ⊆ write scope (run `git status --porcelain` and diff against the declared scope — out-of-scope modifications are a gate failure, not a formality); spot-check one or two claims against the diff.
-   - **Run repo-wide checks** (full suite / lint / typecheck as the plan or repo defines; command discovery per `/sdd-goal-implement`'s preflight) — once before the wave's first commit, and again only when a later fix changed files. Workers run only their phase-scoped criteria; the repo-wide gate is the factory's, at the integration point — this also keeps concurrent workers from racing the same test suite. **An integration failure here is the factory's to fix** (it is the integrator): 2 self-fix attempts under the standard budget; when the failure clearly traces to one phase, that phase's replacement-worker path (Step 9) applies instead, with the failing output as evidence; otherwise STOP.
-   - **Flip Progress** rows for that phase — only now, with every gate green (Automated rows only in unattended mode; Manual rows stay `[ ]` per `/sdd-goal-implement`'s Manual-rows policy). Flipping after the repo-wide gate keeps rows honest: a STOP never leaves `[x]` rows whose work failed integration.
-   - **Commit** the phase via the executor ritual (attended: manual-verification pause + message approval; unattended: autonomous ritual), staging the worker's touched set ∪ `{plan.md, factory-log.md}`.
-3. Append the wave's outcome to `factory-log.md` (format: `references/factory-log-format.md`), then start the next wave.
+1. **Dispatch one worker** via the host's subagent mechanism (`subagent_type: "general-purpose"`) with exactly its spec from Step 6 — not the whole repo, not the full conversation.
+2. **When it returns, verify the report**: criteria narrated green; touched files ⊆ write scope (run `git status --porcelain` and diff against the declared scope — out-of-scope modifications are a gate failure, not a formality; a *reported-but-untouched* out-of-scope need follows the scope-expansion policy in Step 9); spot-check one or two claims against the diff.
+3. **Run the integration gate stack** — `/sdd-goal-implement`'s gate-stack steps 2–5 over the worker's touched set, in its canonical order:
+   1. **Stage** the touched set by explicit path (∪ `{plan.md, factory-log.md}`).
+   2. **Deliberate-break check** (only when the phase added or changed tests): break the protected behavior worktree-only, confirm the test goes red, restore via `git checkout -- <file>` — exact *because* the implementation is staged.
+   3. **Repo-wide checks** (full suite / lint / typecheck as the plan or repo defines; command discovery per `/sdd-goal-implement`'s preflight). **An integration failure here is the factory's to fix** (it is the integrator): 2 self-fix attempts under the standard budget; when the failure clearly traces to this phase, the replacement-worker path (Step 9) applies instead, with the failing output as evidence; otherwise STOP. Re-stage after any fix.
+   4. **Flip Progress** rows for the phase — only now, with every gate green (Automated rows only in unattended mode; Manual rows stay `[ ]` per `/sdd-goal-implement`'s Manual-rows policy). Flipping after the gates keeps rows honest: a STOP never leaves `[x]` rows whose work failed integration.
+   5. **Commit** via the executor ritual (attended: manual-verification pause + message approval; unattended: autonomous ritual).
+4. **Append the phase's outcome row to `factory-log.md`** (format: `references/factory-log-format.md`) — after the commit, because the row carries the commit's SHA. Like the Progress SHA write-back, this trailing edit lands in the *next* phase's commit, or in the epilogue for the last phase.
 
-Attended runs pause at the same points `/sdd-implement` would: the manual-verification gate per phase (for a parallel wave, present the wave's phases together), and the continue/clear decision between waves.
+Attended runs pause at the same points `/sdd-implement` would: the manual-verification gate per phase (present a wave's phases together when that reads better), and the continue/clear decision between waves.
 
 ### Step 8: Independent verification
 
-The worker (or session) that implemented a phase is not the final authority on it. After all phases complete:
+The worker (or session) that implemented a phase is not the final authority on it. **Verification is part of `/sdd-run`'s completion contract**, not an optional extra — the factory claims "implemented + verified", so it verifies. After all phases complete:
 
-- **Attended**: offer `/sdd-impl-review <change-id>` (full-plan review with triage) — the existing skill, unchanged. Recommended, not forced (matches `/sdd-implement`'s completion offer).
-- **Unattended**: dispatch one reviewer subagent (`subagent_type: "general-purpose"`) with the plan's Changes-Required text, the run's changed-file list, and the review dimensions from `../sdd-impl-review-ci/references/impl-review-instructions.md` (drift, scope, safety, patterns, criteria). It reads code and reports findings; it edits nothing. CRITICAL findings → STOP block naming them (the human triages via `/sdd-impl-review` on return); WARNING/OBSERVATION findings → listed in the run report. Record the verification outcome in `factory-log.md`.
+- **Attended**: run `/sdd-impl-review <change-id>` (full-plan review with interactive triage) — the existing skill, unchanged. The user may decline when asked once; a declined review is recorded honestly as `Verification: SKIPPED (declined)` in the run report and `factory-log.md`.
+- **Unattended**: dispatch one reviewer subagent (`subagent_type: "general-purpose"`). Reviewers get **broader context than implementers** — coherence beats minimization here. Give it: the **full `plan.md`** (read-only — including Desired End State, success criteria, architectural decisions, and `## What We're NOT Doing`, which is how prohibited-scope drift gets caught), `frame.md`/`research.md` when present, the run's changed-file list, and the review criteria in `../sdd-impl-review-ci/references/impl-review-instructions.md`. It reads code and reports; it edits nothing.
 
-Skip the reviewer subagent for trivial runs (a single phase touching ≤2 files with green gates) — normal gate output is sufficient verification there; say so in the report. Never let a worker's own success claim substitute for the repo-wide checks in Step 7.
+The unattended reviewer returns the **canonical verdict model** from the reference — per-dimension PASS/WARNING/FAIL and an overall **APPROVED / NEEDS ATTENTION / REJECTED** — never a bare findings list. The factory acts on the verdict, not on string-matching one severity label:
+
+| Verdict | Factory action |
+|---|---|
+| APPROVED | Run completes; findings (if any) listed in the report |
+| NEEDS ATTENTION | Run completes, marked `Verification: NEEDS ATTENTION` — report lists the findings and names `/sdd-impl-review <change-id>` for triage; not silently treated as success |
+| REJECTED | STOP block naming the failing dimensions/findings; the human triages via `/sdd-impl-review` on return |
+
+Record the verdict in `factory-log.md`. Skip the reviewer subagent only for trivial runs (a single phase touching ≤2 files with green gates) — record `Verification: SKIPPED (trivial)` and say so in the report. Never let a worker's own success claim substitute for the integration gates in Step 7.
 
 ### Step 9: Failure, retry, STOP
 
 Inherit `/sdd-goal-implement`'s semantics wholesale — mismatch taxonomy (minor → adapt + narrate; structural → STOP), the 2-attempt self-fix budget per gate, never weakening tests/lint/types to pass, and the STOP block format. The factory adds one bounded layer on top, and classifies from the worker's `Stopped because` line:
 
-- **Gate-failure STOPs** (a defect: tests red after 2 self-fix attempts, failed break-check, out-of-scope modification) get **one** fresh replacement worker — same spec **plus** the failure evidence (failing output, the prior attempt's diagnosis). Fresh context often clears what a poisoned context cannot. In a parallel wave, the replacement is dispatched after the wave's successful phases are integrated and committed, so it starts from a stable tree.
+- **Gate-failure STOPs** (a defect: the phase's criteria red after 2 self-fix attempts, a failed integration break-check that traces to this phase, an out-of-scope *modification*) get **one** fresh replacement worker — same spec **plus** the failure evidence (failing output, the prior attempt's diagnosis). Fresh context often clears what a poisoned context cannot. The replacement starts from a restored-clean scope (see the reference's "Retry"); its provenance is certain because the preflight guaranteed the scope was clean at dispatch.
 - **Structural-mismatch STOPs** (the plan cannot be followed as written: missing dependency, architecture differs, referenced API absent) get **no** replacement — a fresh worker faces the same wall. Print the STOP block directly; the fix is a plan correction, which is a human's call.
-- If a replacement also fails, print the STOP block (goal-implement format, plus a `Worker:` line naming the phase/worker) and halt the run. Dependent phases never start; independent in-flight work in the same wave is allowed to finish and be committed, so the STOP leaves maximum durable progress.
-- **The replacement budget spans runs.** If the previous run's `factory-log.md` shows this same phase already stopped after a replacement and the plan fingerprint is unchanged, do not silently retry again: attended → ask; unattended → STOP immediately, pointing at the prior failure. Re-running the factory must not become an unbounded retry loop.
+- **Scope-expansion requests are not failures.** A worker that reports an out-of-scope need *without touching it* (`Out-of-scope needs` in its report) gets this policy: the factory verifies the claim against the code (the file exists; the phase's Intent/Contract genuinely requires it; it is not owned by another pending phase — if it is, that is a dependency the graph missed → structural STOP). Verified → re-dispatch the same worker spec with the widened scope, narrate `SCOPE+: <paths> (<why>)`, and record it in `factory-log.md`. No restore precedes the re-dispatch — the widened worker continues on top of its own prior in-scope work, and the phase integrates **once**, after the widened attempt returns. One expansion re-dispatch per phase; a second expansion request means the plan's file map is wrong → structural STOP. Unverifiable or plan-contradicting requests → STOP. Routine, evidenced expansion never needs a human; it only needs to be observable.
+- If a replacement also fails, print the STOP block (goal-implement format, plus a `Worker:` line naming the phase/worker) and halt the run. Dependent phases never start; a genuinely independent sibling in the same wave (per the DAG) may still be executed and committed before halting, so the STOP leaves maximum durable progress.
+- **The replacement budget spans runs.** If the previous run's `factory-log.md` shows this same phase already stopped after a replacement and the plan fingerprint is unchanged, do not silently retry again: attended → ask; unattended → STOP immediately, pointing at the prior failure. Re-running the factory must not become an unbounded retry loop. (A crash can lose the last uncommitted log row, which at worst grants one extra replacement once — bounded, and noted in the reference.)
 
 Escalate to the human — instead of retrying — when the failure is a **decision, not a defect**: ambiguous or contradictory specification, a product choice no artifact answers, a destructive/irreversible operation, or an architectural call the plan reserved for review. Routine implementation failures are retried within budget, never escalated.
 
-STOP hygiene: completed rows stay flipped, committed phases stay committed, in-progress work stays uncommitted in the worktree, `factory-log.md` records the failure. Resume needs nothing extra (the dirty-tree preflight in Step 7 handles the leftovers).
+STOP hygiene: completed rows stay flipped, committed phases stay committed, in-progress work stays uncommitted in the worktree, `factory-log.md` records the failure. Resume needs nothing extra — the next run's dirty-tree preflight surfaces the leftovers (attended: prompt; unattended: STOP with the paths — it never cleans them unasked).
 
 ### Step 10: State and resume
 
 Two persistence surfaces, both existing conventions:
 
 - **`## Progress` in `plan.md`** — the single source of truth for *work* state, exactly as today. The factory (or its executors) flips rows and writes SHAs; nothing new.
-- **`$CONTEXT_ROOT/changes/<change-id>/factory-log.md`** — append-only record of *orchestration* state: per run, the strategy + why, the plan fingerprint, the dependency graph, per-phase worker outcomes, retries, verification result. Format and parsing contract: `references/factory-log-format.md`. It exists so a resumed run (and a reviewing human) can see which strategy was chosen and why without re-deriving — it is **not** a second progress tracker; if it disagrees with Progress, Progress wins. Mid-run entries land with each phase commit (Step 7); the closing lines (verification, result) are staged into the executor's epilogue commit alongside `plan.md` and `change.md` — extend the epilogue's staging set with `factory-log.md` when the factory drove the run.
+- **`$CONTEXT_ROOT/changes/<change-id>/factory-log.md`** — append-only record of *orchestration* state: per run, the strategy + why, the plan fingerprint, the dependency graph, per-phase worker outcomes, retries, verification result. Format and parsing contract: `references/factory-log-format.md`. It exists so a resumed run (and a reviewing human) can see which strategy was chosen and why without re-deriving — it is **not** a second progress tracker; if it disagrees with Progress, Progress wins. Mid-run entries land with each phase commit (Step 7); the closing lines (verification, result) are staged into the executor's epilogue commit alongside `plan.md` and `change.md` — extend the epilogue's staging set with `factory-log.md` when the factory drove the run. A run that authored **no** phase commits (a verification-only route: all Automated rows were already done) still commits its log entry — one small `chore(<change-id>): factory log (verification)` commit staging `factory-log.md` (and `change.md` if its status advanced); never leave the record stranded uncommitted.
 
 Re-running `/sdd-run <change-id>` after an interruption: Step 2 re-derives state from disk, Step 3 finds the pending Automated rows, completed phases are skipped, and the recorded graph is reused when the plan fingerprint matches (Step 3). No other state is needed.
 
 ### Step 11: Final report
 
-End every run that reached execution — complete or stopped — with a run report (the `/sdd-goal-implement` report, extended with the factory sections). A run that stopped in Step 2 on missing preparation prints its routing message only: nothing was orchestrated, so there is no report and no `factory-log.md` entry.
+End every run that reached execution or verification — complete or stopped — with a run report (the `/sdd-goal-implement` report, extended with the factory sections). A run that stopped in Step 2 on missing preparation prints its routing message only: nothing was orchestrated, so there is no report and no `factory-log.md` entry.
 
 ```
 RUN REPORT — <change-id>
 
-Strategy: <single-agent | sequential multi-agent | parallel DAG> — <one-line why>
+Strategy: <single-agent | sequential multi-agent | multi-agent DAG> — <one-line why>
 Graph:    <compact DAG, multi-agent only>
 
 Phases: <completed>/<total>
@@ -213,7 +233,7 @@ Phases: <completed>/<total>
 - P3 <title> — <sha> (worker: w3; retries: 1)
 - P4 <title> — STOPPED (<reason>)          ← when applicable
 
-Verification: <impl-review handed off | reviewer subagent: N findings (sev counts) | skipped (trivial)>
+Verification: <impl-review: <verdict> | reviewer: APPROVED / NEEDS ATTENTION / REJECTED (N findings) | SKIPPED (trivial) | SKIPPED (declined)>
 Retries: <per-phase counts, or "none">
 Human interventions: <list, or "none">
 
@@ -230,14 +250,16 @@ When `audience: plain`, give the report per the plain-mode contract (what got bu
 1. **Compose, never re-implement.** Prep artifacts come only from their owning skills. Execution follows the existing executor contracts. Verification reuses the existing review dimensions. If the factory is doing something no existing skill defines, it should be orchestration — not domain work.
 2. **Single-agent is the default.** Multi-agent execution requires provable phase independence *and* enough per-phase substance to beat coordination cost. The strategy decision is always printed and logged.
 3. **One writer for state and git.** In multi-agent runs, only the factory mutates `## Progress`, `change.md`, `factory-log.md`, or authors commits. Workers report; the factory integrates. Never let two writers touch the plan.
-4. **Write scopes are guardrails, checked post-hoc.** A worker's out-of-scope modification is treated as a gate failure. But scopes come from the phase's own declared files — never invent artificial boundaries that make the phase unimplementable.
-5. **Bounded everything.** 2 self-fix attempts per gate (worker-internal), 1 fresh worker per failed phase, then STOP. No loops without budgets.
+4. **Write scopes are guardrails, checked post-hoc.** A worker's out-of-scope *modification* is a gate failure; a *reported* out-of-scope need goes through the evidenced scope-expansion policy (Step 9). Scopes come from the phase's own declared files — never invent artificial boundaries that make the phase unimplementable.
+5. **Bounded everything.** 2 self-fix attempts per gate (worker-internal and factory-integration alike), 1 fresh worker per failed phase, 1 scope-expansion re-dispatch per phase, then STOP. No loops without budgets.
 6. **Honor every existing human gate.** Attended runs pause where `/sdd-implement` pauses. Unattended runs never flip Manual rows and never invoke interactive tools. Escalation is for genuine human decisions, not routine failures.
-7. **Progress stays canonical.** `factory-log.md` is additive observability; it never becomes a second source of execution truth, and no other skill is required to read it.
-8. **Archived is read-only.** Refuse to operate under `$CONTEXT_ROOT/archive/…`, like every other writing skill in the family.
+7. **Never destroy uncommitted work on an assumption.** Dirty files without provenance are the human's, until the human says otherwise (attended prompt) — unattended runs STOP instead. The only autonomous restore is the mid-run replacement restore, where the preflight's clean-scope guarantee makes provenance certain.
+8. **Progress stays canonical.** `factory-log.md` is additive observability; it never becomes a second source of execution truth, and no other skill is required to read it.
+9. **Archived is read-only.** Refuse to operate under `$CONTEXT_ROOT/archive/…`, like every other writing skill in the family.
 
 ## Notes
 
 - Backward compatibility is a feature: every artifact this skill reads and writes (`change.md`, `plan.md` + `## Progress`, `reviews/*`) keeps its existing schema. The only new artifact is `factory-log.md`, which no other skill depends on. All individual skills keep working standalone.
-- The optional per-phase `**Depends on**:` line (see `/sdd-plan`) is the plan author's way to unlock parallelism explicitly; without it the factory infers conservatively and mostly stays sequential — which is correct, not a limitation.
-- Host capability mapping (what the factory needs from the runtime, and what degrades how) lives in `references/worker-contract.md` — subagent dispatch, parallel dispatch, per-agent tool restriction where supported. Nothing here requires a database, broker, daemon, or external orchestrator: files, markdown, git, subagents.
+- The optional per-phase `**Depends on**:` line (see `/sdd-plan`) is the plan author's way to declare phase independence explicitly; without it the factory infers conservatively and mostly stays sequential — which is correct, not a limitation.
+- Host capability mapping (what the factory needs from the runtime, and what degrades how) lives in `references/worker-contract.md` — subagent dispatch with isolated context, and per-agent tool restriction where supported. Concurrent dispatch is deliberately not used (Step 6, invariant 3); if a future host provides worktree isolation with a working toolchain inside it, that is the extension point for real concurrency. Nothing here requires a database, broker, daemon, or external orchestrator: files, markdown, git, subagents.
+- Phase-type execution routing (test-first, browser-level) rides on the executors' own gates: `/sdd-tdd` and `/sdd-e2e` already decide per phase whether they fit and redirect otherwise. The factory does not duplicate that detection — when the user asks for a variant, it routes the relevant phases there and lets the variant's gate rule.

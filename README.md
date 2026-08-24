@@ -133,9 +133,9 @@ The factory does not contain software-development knowledge of its own, and it d
 1. **Inspects state** — `change.md` status + which artifacts exist (`frame.md`, `research.md`, `plan.md`, reviews, the plan's `## Progress`).
 2. **Routes missing preparation** to the owning skill (`/sdd-frame`, `/sdd-research`, `/sdd-plan` are interview-driven — the factory never invents their artifacts; unattended runs STOP on missing prep).
 3. **Analyzes the plan** — builds a dependency graph over the pending phases (an optional per-phase `**Depends on**:` line makes dependencies explicit; without it, phases form a conservative linear chain).
-4. **Selects a strategy and says why** — `single-agent` (the default), `sequential multi-agent` (fresh scoped context per phase), or `parallel DAG` (only when ≥2 phases are provably independent — disjoint files, no shared contracts — and substantial enough to beat coordination cost). Multi-agent is never automatic.
-5. **Executes** — single-agent runs hand the session to the existing executors (`/sdd-implement` attended, `/sdd-goal-implement` unattended). Multi-agent runs dispatch ephemeral, task-derived workers (no fixed persona catalog), each with one phase as its goal, minimum context, a declared write scope, and the goal-implement gate stack. Workers never commit and never touch `plan.md` — the factory is the sole writer of `## Progress` and sole author of the per-phase Conventional Commits.
-6. **Verifies independently** — the implementer is not the authority on its own work: attended runs hand off to `/sdd-impl-review`; unattended runs dispatch a reviewer subagent applying the existing impl-review dimensions.
+4. **Selects a strategy and says why** — `single-agent` (the default), `sequential multi-agent` (fresh scoped context per phase), or `multi-agent DAG` (only when ≥2 phases are provably independent — disjoint files, no shared contracts — and substantial enough to justify workers). Multi-agent is never automatic.
+5. **Executes** — single-agent runs hand the session to the existing executors (`/sdd-implement` attended, `/sdd-goal-implement` unattended). Multi-agent runs dispatch ephemeral, task-derived workers (no fixed persona catalog), each with one phase as its goal, minimum context, and a declared write scope — executed **one at a time, even in a DAG** (write-scope disjointness is not runtime isolation; a sibling's tests or a repo-wide typecheck must never observe half-finished work). The DAG buys dependency-true ordering and failure isolation between independent phases, not concurrency. Workers never commit, never stage, never touch `plan.md`; the factory runs the full gate stack at integration (stage → deliberate-break check → repo-wide checks → commit) and is the sole writer of `## Progress` and sole author of the per-phase Conventional Commits.
+6. **Verifies independently, as part of completion** — the implementer is not the authority on its own work: attended runs run `/sdd-impl-review` (declining is recorded as `Verification: SKIPPED`); unattended runs dispatch a reviewer subagent that reads the **full plan** (including "What We're NOT Doing") and returns the canonical APPROVED / NEEDS ATTENTION / REJECTED verdict — REJECTED stops the run.
 7. **Retries bounded, STOPs honestly** — 2 self-fix attempts per gate inside a worker, one fresh replacement worker per failed phase, then a STOP block (goal-implement format). Escalation to a human is reserved for genuine decisions (ambiguous spec, contradictions, destructive ops), not routine failures.
 8. **Persists and resumes** — execution state stays in the plan's `## Progress` (unchanged, canonical); orchestration state (strategy, graph, worker outcomes, retries) is appended to `changes/<change-id>/factory-log.md`. Re-running `/sdd-run <change-id>` after an interruption skips completed phases and continues.
 
@@ -155,14 +155,15 @@ Graph: P1 → P2
 **Example — parallelizable feature (DAG).** `/sdd-run listing-visibility` on a 4-phase plan (P1 migration; P2 API `**Depends on**: Phase 1`; P3 frontend `**Depends on**: Phase 1`; P4 integration tests `**Depends on**: Phase 2, Phase 3`):
 
 ```
-Strategy: parallel DAG
+Strategy: multi-agent DAG
 Why: P2 and P3 touch disjoint subsystems (src/server/** vs src/client/**)
      with no cross references; both are multi-file. P1 must land first;
-     P4 integrates both.
+     P4 integrates both. Execution is serialized; the graph isolates
+     failures between P2 and P3.
 Graph: P1 → {P2 ∥ P3} → P4
 ```
 
-P1 runs, is verified and committed; P2 and P3 run as concurrent workers with disjoint write scopes; the factory integrates them serially (repo-wide checks once, then one commit per phase); P4 runs last; a reviewer pass closes the run.
+P1 runs and is integrated + committed; P2 then P3 run as scoped workers, one at a time, each integrated through the full gate stack and committed; P4 runs last; the reviewer pass closes the run. If P2 fails after its bounded retry, P3 (independent) still lands before the run stops — that failure isolation, not concurrency, is what the DAG buys.
 
 Individual skills remain the direct-control path — nothing routes you through the factory. See `skills/sdd-run/SKILL.md` and its `references/` for the full contracts (strategy selection, worker spec, factory-log format).
 
