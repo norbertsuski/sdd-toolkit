@@ -62,6 +62,8 @@ When this command is invoked:
 
 3. **Preflight the gates**: collect the commands from every phase's Automated success criteria and verify each is runnable in this environment (the binary or package script exists — e.g. check `package.json` scripts, `command -v`, `Makefile` targets). A criterion whose command cannot run is a structural mismatch for the phase that needs it: narrate the missing command now (`PREFLIGHT: <command> not runnable — Phase <N> will stop unless fixed`), and when execution reaches that phase, print the STOP block and halt. Do not silently skip an unverifiable criterion.
 
+   **Preflight the index**: run `git diff --cached --name-only`. Any pre-existing staged entry outside this change's scope would be silently bundled into every phase commit (`git commit` commits the whole index; explicit `git add` never unstages other entries). If the index is non-empty with such entries, print `Cannot start: pre-existing staged changes would be bundled into phase commits: <paths>. Commit or unstage them first.` and STOP — never `git reset` or unstage the user's index yourself.
+
 4. **Update `change.md`**: set `status: implementing` (only if currently in `{planned, plan_reviewed}`) and `updated: <today>`.
 
 5. **Create phase tasks**: count total phases (from `## Phase N:` headers) and create one TaskCreate entry per phase (`subject: "Phase N: [Phase Name]"`, `activeForm: "Implementing Phase N"`). Set the current phase `in_progress` via TaskUpdate before starting work; mark it `completed` when its gates pass and its commit lands.

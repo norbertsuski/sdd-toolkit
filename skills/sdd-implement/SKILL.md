@@ -138,15 +138,25 @@ After implementing a phase:
 
   2. **Compute the staging set.** Take the touched-file set maintained during the phase (see "Tracking files touched during a phase" above) and union it with `{$CONTEXT_ROOT/changes/<change-id>/plan.md}`. The plan file is always staged because each phase produces at least one modification to its `## Progress` section.
 
-  3. **Detect unrelated dirty paths.** Run `git status --porcelain` and intersect with paths _outside_ the staging set. If the dirty-but-untouched set is non-empty, present the offending paths and ask the user:
+  3. **Detect unrelated dirty and staged paths.** Two checks, both against paths _outside_ the staging set:
+
+     **(a) Working tree.** Run `git status --porcelain` and intersect with paths _outside_ the staging set. If the dirty-but-untouched set is non-empty, present the offending paths and ask the user:
 
      Ask the user: "<N> unrelated path(s) are dirty. How should I handle them?" with options:
 
-     - "Continue — stage only the planned set (Recommended)" (description: "Commit only files this phase touched. Leave the unrelated paths dirty for you to handle separately.")
+     - "Continue — stage only the planned set (Recommended)" (description: "Commit only files this phase touched. Leave the unrelated paths as they are for you to handle separately.")
      - "Stage all" (description: "Add the unrelated paths to this commit. You take responsibility for the broader scope.")
      - "Abort" (description: "Stop the phase commit. Resolve the dirty paths first, then re-run the ritual.")
 
-     If the dirty-but-untouched set is empty, skip this step.
+     **(b) Index.** Run `git diff --cached --name-only` and intersect with paths _outside_ the staging set. Pre-existing staged entries are different from unstaged dirt: `git commit` commits the **whole index**, and explicit `git add` of the planned set never unstages them — so without this check they would silently ride into the phase commit. If any exist, present the paths and ask the user:
+
+     Ask the user: "<N> unrelated path(s) are already staged and would be bundled into this commit. How should I handle them?" with options:
+
+     - "Abort (Recommended)" (description: "Stop the phase commit. Commit or unstage them yourself, then re-run the ritual.")
+     - "Unstage them" (description: "Run `git restore --staged <paths>` on the unrelated entries — your working-tree changes are kept, only the staging is undone.")
+     - "Include them" (description: "Let them ride into this commit. You take responsibility for the broader scope.")
+
+     If both sets are empty, skip this step.
 
   4. **Stage explicitly by path.** Run `git add` for each file in the chosen set by name. Do NOT use `git add -A` or `git add .` — explicit paths only.
 
@@ -267,7 +277,7 @@ When every `- [ ]` in the entire `## Progress` section is now `- [x]`:
 2. Update `change.md`: set `status: implemented`, `updated: <today>`. (Do NOT set `archived_at` — that belongs to `/sdd-archive`.)
 3. Do NOT write any HTML comment progress marker at the bottom of the plan.
 4. **Run the epilogue commit.** The final phase's commit cannot contain its own SHA (chicken-and-egg), so the SHA write-back into the final phase's Progress rows plus the `change.md` status flip both sit dirty in the working tree after the final phase ritual returns. Author one closing commit to land them — otherwise `/sdd-archive`'s hard-refusal gate (uncommitted paths inside the change folder) will block. Steps:
-   1. Stage exactly `$CONTEXT_ROOT/changes/<change-id>/plan.md` and `$CONTEXT_ROOT/changes/<change-id>/change.md` (explicit paths, no `git add -A`).
+   1. Run the index check from ritual step 3(b) first (unrelated staged entries would be bundled here just the same); then stage exactly `$CONTEXT_ROOT/changes/<change-id>/plan.md` and `$CONTEXT_ROOT/changes/<change-id>/change.md` (explicit paths, no `git add -A`).
    2. Run `git diff --cached --quiet`; if exit code 0, skip the epilogue (nothing trailing to commit) and stop here.
    3. Propose subject `chore(<change-id>): close out plan (epilogue)` with a short body noting the plan's final SHA write-back + change.md → implemented, plus the `Refs:` line from "Tracking issue/task references for commits" when applicable. Ask the user to approve as proposed / edit subject / override entirely (same options as the phase ritual).
    4. Commit via heredoc per the global protocol (never `--no-verify` / `--amend`).
