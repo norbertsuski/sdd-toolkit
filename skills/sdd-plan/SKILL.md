@@ -464,6 +464,8 @@ If none apply, omit the section entirely. A plan without it is not incomplete; a
 
 ## Phase 1: [Descriptive Name]
 
+**Depends on**: — <!-- OPTIONAL line. Omit entirely for the default (each phase depends on the previous one). Write `**Depends on**: Phase X[, Phase Y]` to declare exact prerequisites, or `**Depends on**: —` to mark the phase independent of all earlier phases. Declare independence ONLY when the phases touch disjoint files and share no contracts — /sdd-run uses this to parallelize. -->
+
 ### Overview
 
 [What this phase accomplishes]
@@ -744,7 +746,12 @@ For non-software: structure, workflow, key dependencies.]
    - Every decision must be made before finalizing the plan
    - "Critical Implementation Details" subsections are opt-in: include them only when a real constraint, gotcha, or ordering requirement applies. Default to omission. A plan without that section is not incomplete.
 
-8. **Describe intent, not implementation**:
+8. **Declare phase dependencies only when they unlock something**:
+
+   - The `**Depends on**:` line under a phase heading is optional. Absent = the phase depends on the previous one (the safe default readers assume).
+   - Write it only when the true dependency differs from the linear order — most usefully to mark phases that are genuinely independent (disjoint files, no shared contracts), which lets `/sdd-run` execute them in parallel. If unsure, omit the line.
+
+9. **Describe intent, not implementation**:
    - The plan tells the implementer **what to change and why**, not how to write the code
    - Each change entry under `### Changes Required:` separates `**Intent**` (what and why) from `**Contract**` (the interface, signature, schema field, route, structure, or invariant the change touches). Code snippets, when needed, live at the tail of `**Contract**`
    - Default to no code snippets. Include a snippet ONLY when the change is non-obvious (tricky regex, unusual API call, counterintuitive ordering, workaround, signature contract that other phases depend on)

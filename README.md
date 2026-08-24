@@ -2,7 +2,7 @@
 
 Personal Claude Code marketplace. Currently ships one plugin:
 
-- **sdd-skills** — the spec-driven development (SDD) skill family (23 `sdd-*` skills).
+- **sdd-skills** — the spec-driven development (SDD) skill family (26 `sdd-*` skills), including the `/sdd-run` Agent Factory layer.
 
 ## Install
 
@@ -109,11 +109,62 @@ Listed roughly in pipeline order.
 | `sdd-tdd` | Drive testable phases test-first (red→green→refactor) |
 | `sdd-e2e` | Drive browser-level (E2E) phases against the running app |
 | `sdd-goal-implement` | Autonomous/unattended plan execution |
+| `sdd-run` | **Agent Factory**: drive a change from its current state — route prep, select strategy, spawn scoped workers, verify |
 | `sdd-impl-review` | Review the implementation against the plan (interactive) |
 | `sdd-impl-review-ci` | Run implementation review non-interactively in CI |
 | `sdd-mr` | Open a merge request for a completed change (plain-mode hand-off) |
+| `sdd-map` | Draw the roadmap dependency graph (Mermaid) |
 | `sdd-lesson` | Capture a recurring rule / lesson |
 | `sdd-archive` | Archive a completed change |
+| `sdd-archive-project` | Archive a whole completed project (foundation folder) |
+
+## The Agent Factory (`/sdd-run`)
+
+The `sdd-*` skills above are **capabilities** — reusable procedures a person drives one command at a time. `/sdd-run` adds a composition layer on top:
+
+```
+Skill          = reusable procedure / capability
+Agent (worker) = goal + scoped context + skill contract + tools + write scope
+Agent Factory  = /sdd-run — decides which workers (if any) are needed and how they cooperate
+```
+
+The factory does not contain software-development knowledge of its own, and it does not replace any skill. Given a change-id it:
+
+1. **Inspects state** — `change.md` status + which artifacts exist (`frame.md`, `research.md`, `plan.md`, reviews, the plan's `## Progress`).
+2. **Routes missing preparation** to the owning skill (`/sdd-frame`, `/sdd-research`, `/sdd-plan` are interview-driven — the factory never invents their artifacts; unattended runs STOP on missing prep).
+3. **Analyzes the plan** — builds a dependency graph over the pending phases (an optional per-phase `**Depends on**:` line makes dependencies explicit; without it, phases form a conservative linear chain).
+4. **Selects a strategy and says why** — `single-agent` (the default), `sequential multi-agent` (fresh scoped context per phase), or `parallel DAG` (only when ≥2 phases are provably independent — disjoint files, no shared contracts — and substantial enough to beat coordination cost). Multi-agent is never automatic.
+5. **Executes** — single-agent runs hand the session to the existing executors (`/sdd-implement` attended, `/sdd-goal-implement` unattended). Multi-agent runs dispatch ephemeral, task-derived workers (no fixed persona catalog), each with one phase as its goal, minimum context, a declared write scope, and the goal-implement gate stack. Workers never commit and never touch `plan.md` — the factory is the sole writer of `## Progress` and sole author of the per-phase Conventional Commits.
+6. **Verifies independently** — the implementer is not the authority on its own work: attended runs hand off to `/sdd-impl-review`; unattended runs dispatch a reviewer subagent applying the existing impl-review dimensions.
+7. **Retries bounded, STOPs honestly** — 2 self-fix attempts per gate inside a worker, one fresh replacement worker per failed phase, then a STOP block (goal-implement format). Escalation to a human is reserved for genuine decisions (ambiguous spec, contradictions, destructive ops), not routine failures.
+8. **Persists and resumes** — execution state stays in the plan's `## Progress` (unchanged, canonical); orchestration state (strategy, graph, worker outcomes, retries) is appended to `changes/<change-id>/factory-log.md`. Re-running `/sdd-run <change-id>` after an interruption skips completed phases and continues.
+
+Human gates are honored, not bypassed: attended runs pause at every gate `/sdd-implement` defines (manual verification per phase, commit approval, mismatch decisions); unattended runs follow `/sdd-goal-implement`'s policies (Manual checklist rows are never auto-checked — they end up in the run report).
+
+**Example — small change (single-agent).** `/sdd-run rename-visibility-prop` on a 2-phase plan (rename + update components; fix tests). Phase 2's tests exercise phase 1's rename → linear chain, small scope:
+
+```
+Strategy: single-agent
+Why: 2 phases, P2's criteria consume P1's rename; per-phase scope is small —
+     coordination would cost more than it saves.
+Graph: P1 → P2
+```
+
+…then the run proceeds exactly as `/sdd-implement` would, and ends with the standard run report.
+
+**Example — parallelizable feature (DAG).** `/sdd-run listing-visibility` on a 4-phase plan (P1 migration; P2 API `**Depends on**: Phase 1`; P3 frontend `**Depends on**: Phase 1`; P4 integration tests `**Depends on**: Phase 2, Phase 3`):
+
+```
+Strategy: parallel DAG
+Why: P2 and P3 touch disjoint subsystems (src/server/** vs src/client/**)
+     with no cross references; both are multi-file. P1 must land first;
+     P4 integrates both.
+Graph: P1 → {P2 ∥ P3} → P4
+```
+
+P1 runs, is verified and committed; P2 and P3 run as concurrent workers with disjoint write scopes; the factory integrates them serially (repo-wide checks once, then one commit per phase); P4 runs last; a reviewer pass closes the run.
+
+Individual skills remain the direct-control path — nothing routes you through the factory. See `skills/sdd-run/SKILL.md` and its `references/` for the full contracts (strategy selection, worker spec, factory-log format).
 
 ## Notes
 
