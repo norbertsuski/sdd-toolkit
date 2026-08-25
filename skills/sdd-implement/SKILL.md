@@ -40,7 +40,7 @@ When given a plan path:
 - Read all files mentioned in the plan (referenced research, frame, source files in the same change folder)
 - **Read files fully** - never use limit/offset parameters, you need complete context
 - Think deeply about how the pieces fit together
-- **Update `change.md`**: on entry, set `status: implementing` (only if currently in `{planned, plan_reviewed}`) and `updated: <today>`.
+- **Update `change.md`**: after confirming pending executable work, apply `../sdd-run/references/verification-freshness.md` — set `status: implementing` from `{planned, plan_reviewed, implemented, impl_reviewed}` and bump `updated` before editing. If no implementation row is pending, do not downgrade.
 - **Resolve `audience`** (governs how this run reports, not what it builds) per `../sdd-shape/references/plain-mode.md`'s "Audience resolution": read `$CONTEXT_ROOT/.sdd.local.yml`, else ask+write there; default `technical`. When `audience: plain`, follow `../sdd-shape/references/plain-mode.md` for all operator-facing text — report progress in plain language, hide git/commit/branch mechanics, and never print schema, phase-internal jargon, or shell. This changes only what you SAY; the code, commits, and `## Progress` flips are identical to technical mode.
 - Count total phases (from `## Phase N:` headers) and create one TaskCreate entry per phase (these appear in the user's status bar):
   - For each phase, create a task with `subject: "Phase N: [Phase Name]"` and `activeForm: "Implementing Phase N"`

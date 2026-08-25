@@ -7,8 +7,9 @@ description: >
   missing preparation to the owning interview skills, treats the roadmap as the
   project dependency graph, selects the next executable roadmap item, delegates
   its execution to /sdd-run (one change at a time), observes the structured
-  result, feeds roadmap-impacting discoveries back into planning, applies the
-  closeout policy, and loops until the project is complete, blocked, or a human
+  result, feeds roadmap-impacting discoveries back into planning, selects an
+  evidence-based model/effort profile, applies the closeout policy, and loops
+  until the project is complete, blocked, or a human
   decision is required. Resume-first: re-running reconstructs state from disk.
   Use when the user says "run the project", "drive the whole project", "keep
   going until the roadmap is done", "sdd project run", "project factory",
@@ -33,6 +34,7 @@ IDEA / EXISTING PROJECT
  route missing prep      (init / shape / prd / stack / roadmap — owning skills, never invented here)
  derive roadmap state    (item states from roadmap + changes/ + archive/ — §2)
  select next item        (resume in-flight first; else the roadmap's own hand-off rule — §3)
+ classify resources      (change profile: model tier, effort, context, verification)
  delegate the change     (/sdd-run <change-id> — the change factory, unchanged)
  observe the result      (FACTORY RESULT — ../sdd-run/references/run-result-contract.md)
  re-evaluate on impact   (roadmap re-evaluation gate — §4)
@@ -65,7 +67,7 @@ This skill is an **entry skill**: it resolves `CONTEXT_ROOT` per `../sdd-shape/r
 | Skill | Role for the project factory |
 |---|---|
 | `/sdd-init`, `/sdd-shape`, `/sdd-prd`, `/sdd-tech-stack-selector`, `/sdd-stack-assess`, `/sdd-health-check`, `/sdd-roadmap` | Preparation stages. The factory **routes** to them when their artifact is missing — attended runs may invoke them inline (their interviews, their gates, unchanged) or hand off via clipboard; unattended runs STOP. It never generates a shape, PRD, stack decision, or roadmap itself. |
-| `/sdd-run` | **The delegate for every change.** The project factory selects a roadmap item's Change ID and invokes `/sdd-run <change-id>` (passing `--auto` in unattended mode); `/sdd-run` owns everything below that — prep routing for the change, strategy, workers, gates, verification, retries. The project layer consumes its `FACTORY RESULT` block and never re-litigates or re-retries what the change factory already bounded. |
+| `/sdd-run` | **The delegate for every change.** The project factory selects a roadmap item's Change ID, classifies it under `../sdd-run/references/execution-profiles.md`, and invokes `/sdd-run <change-id>` (passing `--auto` in unattended mode plus the parent profile block as routing context); `/sdd-run` owns everything below that — prep routing for the change, per-phase profiles, strategy, workers, gates, verification, retries. The project layer consumes its `FACTORY RESULT` block and never re-litigates or re-retries what the change factory already bounded. |
 | `/sdd-roadmap` | Owns roadmap generation and regeneration. The factory reads `roadmap.md` as the project dependency graph and derives item states at runtime; it **never writes** roadmap statuses, items, or `## Done`. Roadmap-impacting discoveries route to the re-evaluation gate (hand-edit, `/sdd-roadmap` regeneration, or `/sdd-prd` first), never to a silent orchestrator edit. |
 | `/sdd-impl-review` | Triage surface for NEEDS ATTENTION / REJECTED verdicts returned by `/sdd-run` — the loop routes there (attended) or stops naming it (unattended). |
 | `/sdd-mr`, `/sdd-archive` | Closeout, human-gated. `/sdd-archive` remains the **sole writer** of a roadmap item's `done` flip and `## Done` entry. The factory invokes them only per the closeout policy (Step 7), with their own gates intact. |
@@ -90,7 +92,8 @@ Interactive prompts are host-agnostic — use whichever structured-question tool
 
 - Resolve `CONTEXT_ROOT` per `../sdd-shape/references/context-resolution.md`. Unattended: zero roots → STOP (`Cannot start: no context root. Run /sdd-init.`); several roots (or a legacy root's `<app>` pick) → STOP unless the argument disambiguates.
 - Resolve the project: an explicit `<project-slug>` argument selects `$CONTEXT_ROOT/foundation/<project-slug>/`; otherwise enumerate `foundation/*/` project folders — exactly one → use it; several → ask (attended) / STOP (unattended); none → the project doesn't exist yet, which is simply the `unshaped` (or `uninitialized`) stage in Step 2.
-- Read `$CONTEXT_ROOT/foundation/<project-slug>/project-log.md` if present (last session's `Result` and `Next safe action` are orientation context — never authority; disk artifacts win).
+- Read `$CONTEXT_ROOT/foundation/<project-slug>/project-log.md` if present. Roadmap/Progress/change.md remain canonical for build state; the log is authoritative only for its own append-only events (impact acknowledgements, MR handoff, integration confirmation). Missing ledger history triggers conservative re-checks.
+- **Pre-shape logging**: when no project slug/folder exists yet, defer `project-log.md` creation. After `/sdd-shape` establishes `$CONTEXT_ROOT/foundation/<project-slug>/`, create the log there and record the session's original entry stage and route. Never invent a temporary slug or a sidecar state file.
 - `--status` → print the derived stage, the roadmap item states, and the single recommended next move (the same derivation, read-only — an acting sibling of `/sdd-help <slug>`), then STOP without doing work.
 
 ### Step 2: Derive the project stage and route preparation
@@ -111,7 +114,7 @@ Running a prep skill **inline** means invoking that skill's process in this sess
 
 ### Step 3: Derive roadmap state
 
-Read `roadmap.md` fully (the `## At a glance` table and every `### F-NN:`/`### S-NN:` body). Cross-check against `$CONTEXT_ROOT/changes/*/` and `$CONTEXT_ROOT/archive/*/` — scoped to changes whose `change_id` matches this roadmap's `Change ID`s; untraced or sibling-project changes get one informational line and stay outside the loop — and derive each item's state per `references/project-state.md` §2: `done`, `archived-drift`, `in-flight` (distinguishing `in-progress`, `awaiting-closeout`, and `needs-triage` via the verification evidence), `blocked`, `executable`, `waiting`. Run §3's **unresolved-impact check** (a persisted `Project impact` from a previous session with no recorded re-evaluation fires the gate now, before anything is selected). Narrate stale-label divergences in one line each (derivation wins over generation-time `ready`/`proposed` labels). Print a compact state summary:
+Read `roadmap.md` fully and cross-check roadmap-linked active/archive folders. Derive item states per `references/project-state.md`. For awaiting-closeout, a latest `MR_HANDOFF_REQUESTED` event with no later `INTEGRATION_CONFIRMED`, or a live open-MR signal, means `awaiting-merge`; confirmed integration becomes archiveable only after the clean synchronized target-branch gate in Step 7. Use authenticated GitLab tooling when already available; otherwise ask attended and STOP unattended — never assume. Run §3's all-change unresolved-impact scan before selection. Narrate stale-label divergence and print the compact summary.
 
 ```
 Roadmap state — <slug>: 7 items
@@ -130,46 +133,48 @@ Next: S-02 srs-review-session
 Why:  in-flight (status implementing, 3/8 rows done) — resume before new work.
 ```
 
+Only when the selected action delegates an `in-progress` or `executable` item to `/sdd-run`, classify it under `../sdd-run/references/execution-profiles.md`. Do not spend/log an implementation profile for needs-triage or closeout-only actions. Print the decision block and record it in the iteration row; it controls model-selectable delegation and becomes parent risk/context input to `/sdd-run`.
+
 External-state prerequisites (prose entries) follow §2's rule: attended → confirm once per session; unattended → treat as unsatisfied.
 
 ### Step 5: Delegate to /sdd-run
 
-Invoke `/sdd-run <change-id>` inline — attended as attended, unattended as `/sdd-run <change-id> --auto`. The change factory owns everything from here to the verified change: prep routing for the change (a missing plan is *its* Step 2, which interviews attended and stops unattended), strategy, workers, gates, verification, bounded retries, `factory-log.md`.
+Delegate `/sdd-run <change-id>` and include the parent profile block. When the host exposes a child model override **and the child can complete the selected mode's interaction contract** (unattended, or interactive relay supported), dispatch the change factory with that model; pass reasoning effort independently when supported, otherwise log host-default effort. If model override or interaction relay is unavailable, invoke inline and record `inherited`. The change factory owns prep, per-phase profiles, execution, verification, retries, and `factory-log.md`.
 
 The project factory adds nothing during the run and touches nothing the run owns — no Progress flips, no commits, no plan edits. One change is in flight at a time; the next selection happens only after this run returns and its result is classified. (The roadmap's `Parallel with` marks *may* — future concurrent execution would slot in here, per the Notes — not *must*.)
 
 ### Step 6: Observe the result and classify
 
-Read the run's closing `FACTORY RESULT` block (`../sdd-run/references/run-result-contract.md`) and classify it into one project-level event per `references/project-state.md` §4 — CHANGE_COMPLETED, CHANGE_NEEDS_ATTENTION, CHANGE_REJECTED, CHANGE_STOPPED (defect), SPEC_MISMATCH, HUMAN_DECISION_REQUIRED, ENVIRONMENT — and act per that table. Two hard rules:
+Read the run's closing `FACTORY RESULT` block (`../sdd-run/references/run-result-contract.md`) and classify it on **two independent axes** per `references/project-state.md` §4: (1) exactly one primary outcome event — CHANGE_COMPLETED, CHANGE_NEEDS_ATTENTION, CHANGE_REJECTED, CHANGE_STOPPED (defect), SPEC_MISMATCH, HUMAN_DECISION_REQUIRED, or ENVIRONMENT — and (2) a project-impact modifier (`none | spec | architecture | roadmap`, possibly several). Act on the primary event, then apply the impact gate. Two hard rules:
 
 - **No project-level retries.** `/sdd-run` already spent its bounded budgets; a `stopped` result stops the loop (attended runs may re-enter `/sdd-run` with the human present — new information, same budgets — but the factory never auto-re-invokes).
 - **`Project impact` ≠ `none` fires the re-evaluation gate before any next selection** — attended: the four-option gate of §4 (proceed / hand-edit roadmap / regenerate via `/sdd-roadmap`, with the explicit `## Done`-loss warning / stop; `spec` impact routes through `/sdd-prd` first). Unattended: STOP, printing the impact notes and the options. Continuing past an invalidated assumption is the pipeline failure this layer exists to prevent: the loop is observe → decide → execute → observe → replan, not A → B → C.
 
-Append the iteration row to `project-log.md` (item, why selected, delegate, outcome, verification, impact, closeout).
+Append the immutable iteration row to `project-log.md` (item, why selected, profile when applicable, delegate, outcome, verification, impact). Step 7 appends separate closeout events; it never edits this row.
 
 ### Step 7: Closeout
 
 After CHANGE_COMPLETED, apply the closeout policy — reusing the owning skills with their gates intact, never re-implementing them:
 
-- **Attended** — ask once per change: **Continue without closeout** (the item counts satisfied via the awaiting-closeout derivation; closeout stays on the human-actions list) · **Archive now** (run `/sdd-archive <change-id>` inline — its warn prompt and hard blocks unchanged; this is what flips the roadmap row to `done`) · **Open the MR** (run `/sdd-mr <change-id>` inline — outward-facing, so always an explicit choice, never a default) · **Stop here**.
-- **Unattended** — `--closeout none` (default): no MR, no archive; the change is reported as awaiting closeout and the loop continues on the satisfied-derivation. `--closeout archive`: run `/sdd-archive <change-id>`, answering its warn prompt only within what the flag pre-authorizes — exactly two warning classes may be accepted automatically: (a) *pending Manual rows only* (the case `/sdd-archive` itself marks "Continue archiving (Recommended)"), and (b) *missing `reviews/impl-review*.md`* when the change's verification evidence is `APPROVED` (this session's `FACTORY RESULT`, or the persisted `factory-log.md` verdict — unattended runs verify via a reviewer subagent that writes no review file, so this warning is expected). Any other warning, or any hard block, → STOP rather than answer for the human. `/sdd-mr` is never run unattended by this factory — opening a review request is an outward action a person triggers.
+- **Attended** — ask once per change: **Continue without closeout** (append `CLOSEOUT_DECLINED`; valid only with no MR) · **Archive now** · **Open the MR** · **Stop here**. For **Open the MR**, append `MR_HANDOFF_REQUESTED source=<current> target=<detected>`, finalize and commit the project log first, then invoke `/sdd-mr`; its push includes the event. Any handoff result (created or prepared URL) ends the session awaiting merge; never show the next-item gate. For **Archive now**, require integration evidence, append `INTEGRATION_CONFIRMED`, then require: clean worktree/index; checkout the MR target/integration branch; fetch and fast-forward it to `origin/<target>`; confirm live MR merged or target contains the integration result. Only on that synchronized target branch run `/sdd-archive`, then append `ARCHIVED`. A dirty, diverged, wrong, or unverifiable target branch -> STOP; never put roadmap-close/log commits on the old feature branch.
+- **Unattended** — `--closeout none` continues only without awaiting-merge. `--closeout archive` requires authenticated integration evidence **and the same clean fetch + fast-forward target-branch gate** before `/sdd-archive`; absent/ambiguous/diverged -> STOP. Pre-authorized warnings remain limited to pending Manual-only and missing review file with a current positive snapshot. `/sdd-mr` is never run unattended.
 
 ### Step 8: Loop, complete, or stop
 
-- **Attended** — after closeout, the continue-gate: `Continue to the next item · Stop here (resume later with /sdd-project-run)`. On continue, re-derive from Step 3 (cheap, and it picks up anything the closeout changed).
+- **Attended** — after closeout, the continue-gate: `Continue to the next item · Stop here (resume later with /sdd-project-run)`. On continue, re-derive from Step 3 (cheap, and it picks up anything the closeout changed). This gate is forbidden after `Open the MR`; that path already STOPped awaiting merge.
 - **Unattended** — continue automatically while results are clean (CHANGE_COMPLETED, impact `none`), re-deriving each iteration, bounded by `--max-changes N` when given. Any other event stops the loop with the event's report.
 - **Terminal states** per `references/project-state.md` §5, each with its distinct report: **PROJECT COMPLETE** (name `/sdd-archive-project`), **COMPLETE PENDING CLOSEOUT** (list the pending closeouts), **PROJECT BLOCKED** (highest-leverage unknown first, with owners — never conflated with complete).
 
 ### Step 9: Persist and report
 
-Close the session's `project-log.md` entry (re-evaluation events, stop reason, next safe action, result) and commit the log per `references/project-log-format.md`'s commit policy (attended: propose; unattended: only on a clean index; never bundle other paths; scope per root layout). One consequence to surface explicitly: an uncommitted `project-log.md` hard-blocks `/sdd-archive-project` (uncommitted paths inside `foundation/<slug>/`), so a PROJECT COMPLETE report given while the log is dirty names that commit as the step before archiving the project. End every session with the project report:
+Close the session's append-only `project-log.md` event entry and commit it per `references/project-log-format.md` (the pre-MR exception commits before handoff so the MR push includes it). Uncommitted ledger events block reliable outward closeout and `/sdd-archive-project`. End with the report:
 
 ```
 PROJECT RUN REPORT — <slug>
 
 Entry stage: <derived stage at start>
 Iterations:  <N>
-- 1. S-01 first-gated-generation — completed, APPROVED, archived
+- 1. S-01 first-gated-generation — standard, completed, APPROVED, archived
 - 2. F-02 observability-baseline — stopped (gate-failure)
 
 Roadmap: <done>/<total> items done (<k> awaiting closeout)
@@ -192,17 +197,17 @@ Classification comes from the delegate's `FACTORY RESULT` (stop class + verifica
 1. **Compose, never re-implement.** Shape, PRD, stack, roadmap, plans, execution, verification, MR, archive — all owned by their skills, invoked with their gates intact. If the project factory is doing something no existing skill defines, it should be state derivation, selection, observation, or logging — not domain work.
 2. **The roadmap is the only project DAG.** Item states are derived at runtime and never persisted anywhere else; the factory never edits `roadmap.md`. `/sdd-archive` flips `done`; `/sdd-roadmap` regenerates; a human hand-edits. A second competing representation of sequencing state is the drift this design refuses.
 3. **`/sdd-run` stays the single-change factory.** The project layer passes a Change ID down and reads a `FACTORY RESULT` back — it never reaches inside the run (no Progress flips, no worker talk, no plan edits, no second opinion on retries).
-4. **One change in flight.** Selection happens only after the previous result is classified and any re-evaluation resolved. Serial by design; the contracts (roadmap `Parallel with`, per-change `FACTORY RESULT`) leave room for future concurrency without redesign.
+4. **One change in flight.** Selection happens only after the previous result is classified and any re-evaluation resolved. Opening an MR ends the session until merge/integration is evidenced, so later commits can never leak onto its source branch. Serial by design; the contracts (roadmap `Parallel with`, per-change `FACTORY RESULT`) leave room for future concurrency without redesign.
 5. **Human gates are load-bearing, in both modes.** Attended runs preserve every composed skill's own pauses and add the closeout offer + continue-gate. Unattended runs STOP — with the concrete action — on anything the family defines as human-dependent. No invented artifacts, no defaulted architecture, no auto-answered warnings.
 6. **Impact stops the pipeline.** A non-`none` `Project impact` is never carried silently into the next selection: attended → the re-evaluation gate; unattended → STOP. Observe → replan → continue, only when the roadmap is actionable again.
 7. **Bounded everything.** No project-level retry loops; unattended iteration is bounded by clean-results-only (and `--max-changes` when given); prep routing runs each stage at most once per session before re-deriving.
-8. **Outward actions are explicit.** `/sdd-mr` only on an attended yes; unattended archiving only via explicit `--closeout archive`, and even then `/sdd-archive`'s own warnings stop the run. `/sdd-archive-project` is only ever named.
-9. **The project log is additive observability.** Delete-safe, append-only, one writer; if it disagrees with roadmap/Progress/change.md, they win. It never becomes required reading for any other skill.
+8. **Outward and integration actions are explicit.** `/sdd-mr` only on an attended yes and always terminal for the session. Archive only after merge/integration evidence; unattended archiving additionally requires explicit `--closeout archive`, and `/sdd-archive`'s own warnings still stop the run. `/sdd-archive-project` is only ever named.
+9. **The project log is a durable event ledger.** Append-only, one writer; if its derived build state disagrees with roadmap/Progress/change.md, those canonical artifacts win. Impact acknowledgements and MR/integration events are crash-safety inputs, so deletion triggers conservative re-gating rather than being consequence-free. No specialist skill reads it.
 10. **Inline composition is this skill's explicit mandate, not a family-rule change.** The specialist skills keep their never-auto-chain behavior when run standalone; invoking `/sdd-project-run` is the user's instruction to drive the chain, and every composed skill still runs its own process verbatim.
 
 ## Notes
 
-- **Backward compatibility is a feature.** Every artifact this skill reads keeps its existing schema; the only new artifact is `project-log.md`, which nothing else depends on. All individual skills, and `/sdd-run`, keep working standalone.
+- **Backward compatibility is additive.** Existing changes without verification snapshot fields are treated conservatively stale once and migrate on their next full review; no old field is removed. `project-log.md` remains separate from roadmap state. All individual skills and `/sdd-run` keep working standalone.
 - **The change↔roadmap link is the Change ID string**, matched exactly against the roadmap's `Change ID` column — the same convention `/sdd-archive` uses. This skill introduces no `roadmap:` pointer into `change.md`.
 - **Known scope quirk**: `tech-stack.md` / `stack-assessment.md` / `health-check.md` are root-level (shared across projects under one root), so the stack stage can be satisfied by a sibling project's artifacts. The derivation accepts that (it mirrors `/sdd-help`), and the attended route lets the human re-run the stack step anyway.
 - **Extension points, deliberately prepared but not built**: concurrent change execution (would need worktree isolation with a working toolchain, branch/merge policy, and integration-ordering rules — the serial loop, `Parallel with` marks, and per-change result contract are the seams); backlog ingestion (Jira/GitLab issues mapping onto roadmap items via `## Backlog Handoff`); CI-driven verification (`/sdd-impl-review-ci` consuming the same verdict model). None of these require redesigning this skill.

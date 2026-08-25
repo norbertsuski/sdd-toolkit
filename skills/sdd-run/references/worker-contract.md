@@ -8,6 +8,7 @@ Worker = Goal (one phase)
        + Skill contract (the executor rules it works under)
        + Tools (minimum the task needs, where the host can restrict)
        + Write scope (declared, verified post-hoc)
+       + Execution profile (model tier · effort · context · verification · why)
        + Success criteria (the phase's own)
        + Termination (success · failure · budget exhausted · human-only decision)
 ```
@@ -24,8 +25,10 @@ Composed by the factory per phase, then rendered into the dispatch prompt:
 | `skill contract` | A scoped subset of `/sdd-goal-implement`'s per-phase rules (criteria gates, mismatch taxonomy, self-fix budget) — inlined in the prompt as the rules below, with the skill file named as canonical source. Staging, the deliberate-break check, repo-wide checks, and commits are **not** the worker's: they run factory-side at integration, where the touched set is staged first and the break-check's restore is therefore exact |
 | `tools` | Read/Grep/Glob/Edit/Write/Bash — the implementation set. No subagent spawning, no interactive questions. Where the host supports per-agent tool restriction (agent definitions, `allowedTools`), apply it; otherwise the prompt's restrictions are the guardrail and the factory's post-hoc checks the enforcement |
 | `write scope` | The phase's `Changes Required` paths + their natural test locations, as concrete paths or narrow globs (e.g. `src/server/**`, `tests/server/**`). New files allowed only inside the scope |
+| `execution profile` | The decision block from `execution-profiles.md`: profile, model tier, resolved host id (or inherited/default), reasoning effort, context scope, verification strength, and evidence. Pass actual model/effort overrides only when the host dispatch supports them |
 | `success criteria` | The phase's `#### Automated` criteria, verbatim, with runnable commands |
 | `dependencies` | The phase's DAG parents (informational — the factory already sequenced the dispatch) |
+| `escalation` | Evidence that requires the worker to STOP/report rather than self-upgrade: unexpected coupling/context gap, critical-risk discovery, structural mismatch, or exhausted gates. The factory alone may select a stronger replacement profile |
 | `termination` | success · structural mismatch (STOP) · 2 self-fix attempts exhausted on a gate (STOP) · decision requiring a human (STOP) |
 
 ## Context assignment
@@ -47,6 +50,20 @@ Isolation and coherence pull against each other; the split below is the balance.
 - the conversation history of the factory session;
 - unrelated foundation docs, the whole roadmap, or other changes' folders.
 
+Apply `execution-profiles.md`'s concrete `small | scoped | broad` payload bands when rendering this context. The list above is the `scoped` default; `small` removes non-direct excerpts/neighbors, while `broad` may include the full plan and cross-cutting research. Record the carrier and payload band in the factory log.
+
+## Whole-run profiled executor (resource carrier, not decomposition)
+
+For a `single-agent` strategy, `/sdd-run` may dispatch one model-selectable child for the whole remaining work-list when the override materially differs from the inherited session and interaction is supported. This is still one execution agent, not a per-phase worker strategy.
+
+- Unattended: execute the full `/sdd-goal-implement` contract, including Progress, gate stack, and phase commits.
+- Attended: allowed only when the host relays human questions/gates; otherwise stay inline.
+- The child is the sole writer while active; the parent pauses and never integrates concurrently.
+- It receives the chosen profile/context payload, full remaining work-list, and existing retry budgets; it may not spawn more agents or change its own profile.
+- It returns the executor's full run report with phase SHAs/touched files. The parent appends resource/factory events, performs Step 8 independent review, and writes the final verification snapshot.
+
+If these conditions cannot be enforced, do not dispatch this carrier: run inline and label the model/context decision advisory.
+
 ## The dispatch prompt template
 
 Render the spec into this shape (adapt wording, keep every numbered rule):
@@ -62,6 +79,15 @@ CONTEXT
 <plan header sections> <phase block> <progress rows for this phase>
 <research/frame excerpts> <lessons.md content>
 Files in scope (read them fully before editing): <list>
+
+EXECUTION PROFILE
+Profile: <light|standard|deep|critical>
+Model tier: <economical|standard|strong> (resolved by parent as <id|default>)
+Reasoning effort: <low|medium|high>
+Context scope: <small|scoped|broad>
+Why: <evidence>
+If this profile/context is insufficient, STOP with evidence; do not change model,
+scope, tools, or permissions yourself.
 
 RULES (scoped /sdd-goal-implement contract — canonical: skills/sdd-goal-implement/SKILL.md)
 1. WRITE SCOPE: you may create or modify files ONLY under: <scope globs/paths>.
@@ -110,7 +136,7 @@ A **STOPPED** report skips steps 3–4: the factory reads its `Touched files` (p
 
 ## Retry (factory side)
 
-A worker whose STOP was a **gate failure** (or whose SUCCESS failed report verification, or whose staged work failed an integration gate that traces to this phase) gets **one** replacement: same spec + a `PRIOR ATTEMPT` context block (failing gate output, the first worker's diagnosis, its adaptations). Structural-mismatch STOPs get no replacement — the skill's Step 9 escalates them directly.
+A worker whose STOP was a **gate failure** (or whose SUCCESS failed report verification, or whose staged work failed an integration gate that traces to this phase) gets **one** replacement: same goal/write scope + a `PRIOR ATTEMPT` context block (failing gate output, the first worker's diagnosis, its adaptations) and the evidence-based profile escalation from `execution-profiles.md`. Structural-mismatch STOPs get no replacement — they route to plan/spec correction, not a stronger model.
 
 Before dispatching the replacement, restore the failed worker's scope to a clean state, in this order (correct whether or not integration already staged the work — `git checkout -- <path>` restores from the *index*, so a staged failed implementation must be unstaged first or the checkout is a no-op against it):
 
@@ -122,8 +148,8 @@ This restore's provenance is certain: the preflight guaranteed the scope was cle
 
 ## Host capabilities
 
-The contract needs, in order of importance: (1) subagent dispatch with an isolated context window; (2) optional per-agent tool restriction; (3) — for any *future* concurrent dispatch — per-worker runtime isolation with a working toolchain inside it.
+The contract needs, in order of importance: (1) subagent dispatch with an isolated context window; (2) optional model and reasoning-effort overrides; (3) optional per-agent tool restriction; (4) — for any *future* concurrent dispatch — per-worker runtime isolation with a working toolchain inside it. Resolve resources per `execution-profiles.md`; lack of model override is a reported limitation, not a reason to invent one.
 
-- **Claude Code**: (1) via the Task/Agent mechanism with `subagent_type: "general-purpose"`; (2) via custom agent definitions when the project ships them — otherwise the prompt-level restriction + post-hoc scope check stand in. (3) exists as native worktree isolation, but a fresh worktree has no installed dependencies or build state, so a worker's criteria commands cannot run there without setup cost — one reason workers execute serially in the shared tree instead (the skill's Step 6, invariant 3). If a host ever provides isolated copies with a working toolchain, concurrent dispatch becomes the extension point — under this same spec, no contract change.
+- **Claude Code**: (1) via the Task/Agent mechanism; (2) pass its model override when exposed (reasoning effort may remain a host default); (3) custom agent definitions can restrict tools — otherwise prompt restrictions + post-hoc scope checks stand in; (4) native worktrees provide isolation, but a fresh worktree lacks installed dependencies/build state, so workers remain serial in the shared tree. If isolated copies later include a working toolchain, concurrent dispatch is the extension point under the same spec.
 - **Hosts without subagents**: multi-agent strategies are unavailable — the factory says so plainly and proceeds single-agent. This is graceful degradation, not failure: single-agent is the default anyway.
 - **Limitation, stated honestly**: prompt-level write scopes are guardrails, not sandboxes. Enforcement is the factory's post-hoc scope check before anything is committed. Serial execution is likewise a correctness choice, not a runtime constraint dressed up as one: write-scope disjointness cannot stop a repo-wide criteria command, a shared build cache, or a test run from observing a sibling's half-finished work.

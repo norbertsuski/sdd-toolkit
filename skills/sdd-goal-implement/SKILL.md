@@ -64,7 +64,7 @@ When this command is invoked:
 
    **Preflight the index**: run `git diff --cached --name-only`. Any pre-existing staged entry outside this change's scope would be silently bundled into every phase commit (`git commit` commits the whole index; explicit `git add` never unstages other entries). If the index is non-empty with such entries, print `Cannot start: pre-existing staged changes would be bundled into phase commits: <paths>. Commit or unstage them first.` and STOP — never `git reset` or unstage the user's index yourself.
 
-4. **Update `change.md`**: set `status: implementing` (only if currently in `{planned, plan_reviewed}`) and `updated: <today>`.
+4. **Update `change.md`**: after confirming pending Automated work, apply `../sdd-run/references/verification-freshness.md` — set `status: implementing` from `{planned, plan_reviewed, implemented, impl_reviewed}` and bump `updated` before editing. If no Automated row is pending, do not downgrade.
 
 5. **Create phase tasks**: count total phases (from `## Phase N:` headers) and create one TaskCreate entry per phase (`subject: "Phase N: [Phase Name]"`, `activeForm: "Implementing Phase N"`). Set the current phase `in_progress` via TaskUpdate before starting work; mark it `completed` when its gates pass and its commit lands.
 

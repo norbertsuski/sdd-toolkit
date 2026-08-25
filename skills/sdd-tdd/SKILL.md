@@ -79,7 +79,7 @@ This skill assumes test infrastructure already exists; it won't set it up. Optio
   • Use /sdd-test-plan for a phased test-rollout strategy.
 ```
 
-5. **Update `change.md`**: set `status: implementing` (only if currently in `{planned, plan_reviewed}`) and `updated: <today>`.
+5. **Update `change.md`**: with pending executable work, apply `../sdd-run/references/verification-freshness.md` — set `status: implementing` from `{planned, plan_reviewed, implemented, impl_reviewed}` and bump `updated` before editing. This invalidates any older snapshot.
 
 6. **Create one task per phase** (these surface in the user's status bar): for each `## Phase N:` header, create a task with `subject: "Phase N: [Phase Name]"` and `activeForm: "TDD Phase N"`. Mark the current phase `in_progress` before starting; mark it `completed` when its success criteria pass.
 

@@ -104,7 +104,7 @@ This skill assumes Playwright is already installed; it won't set it up. Options:
    - **E2E rules**: the rules file the agent reads automatically before generating code (the project's AI configuration file (AGENTS.md), the AI tool's configuration directory, or a dedicated file in the test dir). If absent, create it from `references/e2e-quality-rules.md`.
    - Treat both as part of the **first phase's** touched-file set so they land in that phase's commit. Once they exist, leave them — don't recreate them each phase.
 
-7. **Update `change.md`**: set `status: implementing` (only if currently in `{planned, plan_reviewed}`) and `updated: <today>`.
+7. **Update `change.md`**: with pending executable work, apply `../sdd-run/references/verification-freshness.md` — set `status: implementing` from `{planned, plan_reviewed, implemented, impl_reviewed}` and bump `updated` before editing. This invalidates any older snapshot.
 
 8. **Create one task per phase** (these surface in the user's status bar): for each `## Phase N:` header you intend to drive, create a task with `subject: "Phase N: [Phase Name]"` and `activeForm: "E2E Phase N"`. Mark the current phase `in_progress` before starting; mark it `completed` when its success criteria pass.
 

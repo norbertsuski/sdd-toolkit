@@ -18,6 +18,7 @@ Outcome: completed | stopped
 Stop class: — | missing-prep | gate-failure | structural-mismatch | human-decision | environment
 Verification: APPROVED | NEEDS ATTENTION (<n> findings) | REJECTED (<n> findings) | SKIPPED (trivial) | SKIPPED (declined) | —
 Progress: <done>/<total> Automated rows
+Execution profile: light | standard | deep | critical | mixed | —
 Project impact: none | spec | architecture | roadmap    (comma-separate when several)
 Impact notes: <one line per named impact, or —>
 Discoveries: <one line each, or none>
@@ -36,6 +37,7 @@ Recommended next: <command, or —>
   - `environment` — tooling/runtime failure unrelated to the change (command not runnable, host capability missing, git preflight blocked by unrelated dirt/index).
 - **Verification** — the canonical verdict from Step 8, verbatim; `—` when the run stopped before verification.
 - **Progress** — Automated-row completion at exit (`count([x]) / count(all Automated)` over the whole plan), so a parent can see partial durable progress without opening the plan.
+- **Execution profile** — the strongest profile actually used by implementation workers/inline phase groups, or `mixed` when several materially different profiles were used and the strongest alone would misdescribe routing; `—` before execution. Concrete model ids and effort live in `factory-log.md`, not this semantic block.
 - **Project impact** — does anything this run learned reach *beyond this change*? `none` is the default and must be earned by absence of signal, not by omission:
   - `spec` — the PRD/frame is ambiguous, contradictory, or wrong in a way that outlives this change (a mismatch decision exposed a requirements hole).
   - `architecture` — reality differs from an architectural assumption other work relies on (a structural STOP whose `Found:` describes the system, not the plan's typo).
@@ -56,6 +58,7 @@ Outcome: completed
 Stop class: —
 Verification: APPROVED
 Progress: 9/9 Automated rows
+Execution profile: standard
 Project impact: none
 Impact notes: —
 Discoveries: none
@@ -71,6 +74,7 @@ Outcome: stopped
 Stop class: structural-mismatch
 Verification: —
 Progress: 3/8 Automated rows
+Execution profile: deep
 Project impact: architecture, roadmap
 Impact notes: architecture — plan assumes a per-user review queue; the deck store is per-deck, no user dimension exists.
 Impact notes: roadmap — S-04 (review reminders) assumes the same per-user queue and inherits this gap.
@@ -87,6 +91,7 @@ Outcome: stopped
 Stop class: missing-prep
 Verification: —
 Progress: 0/0 Automated rows
+Execution profile: —
 Project impact: none
 Impact notes: —
 Discoveries: none

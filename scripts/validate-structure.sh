@@ -94,7 +94,10 @@ ok "FACTORY RESULT contract wired in producer and consumer"
 # --- 7. sdd-project-run references resolve -------------------------------
 for ref in \
   skills/sdd-project-run/references/project-state.md \
-  skills/sdd-project-run/references/project-log-format.md
+  skills/sdd-project-run/references/project-log-format.md \
+  skills/sdd-project-run/references/eval-cases.md \
+  skills/sdd-run/references/execution-profiles.md \
+  skills/sdd-run/references/verification-freshness.md
 do
   [[ -f "$ref" ]] || err "$ref missing"
 done
@@ -110,6 +113,81 @@ for skill in sdd-run sdd-project-run; do
   done < <(grep -oE '(\.\./|references/)[A-Za-z0-9/._-]+\.md' "skills/$skill/SKILL.md" | sort -u)
 done
 ok "relative .md links in sdd-run and sdd-project-run resolve"
+
+# --- 9. hardening invariants remain explicit ----------------------------
+grep -q "ends the session awaiting merge" skills/sdd-project-run/SKILL.md \
+  && ok "opening an MR terminates the project-run session" \
+  || err "sdd-project-run does not STOP after opening an MR"
+grep -q "require integration evidence" skills/sdd-project-run/SKILL.md \
+  && ok "archive closeout requires integration evidence" \
+  || err "sdd-project-run archive path lacks integration evidence gate"
+grep -q "every roadmap-linked active or archived change" skills/sdd-project-run/references/project-state.md \
+  && ok "resume scans every roadmap-linked change for unresolved impact" \
+  || err "project-state unresolved-impact scan is not all-change"
+grep -q "two independent axes" skills/sdd-project-run/references/project-state.md \
+  && ok "outcome event and project impact are independent axes" \
+  || err "project-state does not separate outcome from impact"
+grep -qF '| **ROADMAP_IMPACT** |' skills/sdd-project-run/references/project-state.md \
+  && err "ROADMAP_IMPACT is still encoded as a primary event row" \
+  || ok "ROADMAP_IMPACT is not a competing primary event"
+grep -q "verification-freshness.md" skills/sdd-project-run/references/project-state.md \
+  && grep -q "verification-freshness.md" skills/sdd-run/SKILL.md \
+  && ok "verification freshness is status-gated in parent and child" \
+  || err "verification freshness contract missing on one orchestration layer"
+grep -q "implemented.*impl_reviewed" skills/sdd-mr/SKILL.md \
+  && ok "sdd-mr accepts implemented and impl_reviewed" \
+  || err "sdd-mr status precondition does not accept impl_reviewed"
+
+# --- 10. resource-aware routing is wired across both factories ----------
+for file in \
+  skills/sdd-run/SKILL.md \
+  skills/sdd-project-run/SKILL.md \
+  skills/sdd-run/references/worker-contract.md \
+  skills/sdd-run/references/factory-log-format.md
+do
+  grep -q "execution-profile\|execution profile\|Execution profile\|execution-profiles.md" "$file" \
+    || err "$file is not wired to execution profiles"
+done
+grep -q "Resolved model: <host-native model id> | inherited | default" skills/sdd-run/references/execution-profiles.md \
+  && ok "model routing records honest host resolution" \
+  || err "execution profile contract lacks host-resolution fallback"
+grep -q "light -> standard" skills/sdd-run/references/execution-profiles.md \
+  && ok "profile escalation is explicit and bounded" \
+  || err "execution profile escalation ladder missing"
+grep -q "profiled executor" skills/sdd-run/SKILL.md \
+  && grep -Eq "model-only|model override but no effort override" skills/sdd-project-run/references/eval-cases.md \
+  && ok "resource carrier applies routing beyond decomposition strategy" \
+  || err "profiled single-agent/model-only routing contract missing"
+grep -q "verified_fingerprint" skills/sdd-run/references/verification-freshness.md \
+  && grep -q "every Automated Progress row complete" skills/sdd-project-run/references/project-state.md \
+  && ok "verification identity and completion gate are explicit" \
+  || err "verification snapshot/completion contract missing"
+grep -q "fast-forward" skills/sdd-project-run/SKILL.md \
+  && grep -q "MR_HANDOFF_REQUESTED" skills/sdd-project-run/references/project-log-format.md \
+  && ok "MR handoff and synchronized target-branch archive are durable" \
+  || err "MR/integration closeout event contract missing"
+
+# --- 11. behavioral eval catalog covers the risky state transitions ------
+for case_id in \
+  PS-01 PS-05 PS-06 PS-07 PS-09 \
+  VF-01 VF-03 VF-04 VF-05 VF-06 \
+  MR-01 MR-02 MR-03 MR-04 MR-05 MR-06 \
+  IM-01 IM-02 IM-03 IM-04 IM-05 \
+  RP-01 RP-03 RP-04 RP-06 RP-07 RP-08 RP-09 RP-10 RP-11 RP-12 \
+  LG-01
+do
+  grep -q "| $case_id |" skills/sdd-project-run/references/eval-cases.md \
+    || err "project-state eval catalog missing $case_id"
+done
+ok "project-state eval catalog covers lifecycle, freshness, MR, impact, and routing"
+
+# --- 12. CI runs this validator -----------------------------------------
+[[ -f .gitlab-ci.yml ]] \
+  && grep -q "bash scripts/validate-structure.sh" .gitlab-ci.yml \
+  && grep -q "bash scripts/validate-orchestration-evals.sh" .gitlab-ci.yml \
+  && [[ -f scripts/validate-orchestration-evals.sh ]] \
+  && ok "GitLab CI runs structural and deterministic orchestration evals" \
+  || err ".gitlab-ci.yml does not run both orchestration validators"
 
 echo
 if [[ $fail -eq 0 ]]; then

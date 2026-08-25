@@ -22,7 +22,7 @@ This skill operates under the `CONTEXT_ROOT` it resolves for the given change-id
 
 ## When to use, when to skip
 
-**Use when**: a change's `change.md` has `status: implemented` and its commits are on a branch, and you want to open a review request. Typical trigger: `/sdd-implement` (or `/sdd-goal-implement`) just finished and, in plain mode, offered to open the MR.
+**Use when**: a change's `change.md` has `status: implemented` or `impl_reviewed` and its commits are on a branch, and you want to open a review request. Typical trigger: implementation or the factory just finished and offered to open the MR.
 
 **Skip when**: the change isn't implemented yet (run `/sdd-implement` first), or there are uncommitted edits in the change folder (commit them first — this skill does not commit code for you). Merging and code review are the technical reviewer's job, not this skill's.
 
@@ -45,7 +45,7 @@ Whenever this skill says "ask the user", use whichever interactive-question tool
 
 ### Step 2: Preconditions
 
-- **`change.md` status must be `implemented`.** If it's earlier (`planned`, `implementing`), STOP: in plain mode say "This isn't finished being built yet — let's finish it first"; in technical mode name the status and point at `/sdd-implement`.
+- **`change.md` status must be `implemented` or `impl_reviewed`.** `impl_reviewed` is the normal state after `/sdd-run`'s current verification disposition. If status is earlier (`planned`, `implementing`), STOP: in plain mode say "This isn't finished being built yet — let's finish it first"; in technical mode name the status and point at `/sdd-implement`.
 - **No uncommitted edits in the change folder.** Run `git status --porcelain "$CONTEXT_ROOT/changes/<change-id>/"` (legacy: `context/<app>/changes/<change-id>/`); if non-empty, STOP and ask the operator to let the build finish/commit first (plain) or list the paths (technical). This skill does not commit code.
 - **Determine the current branch** (`git rev-parse --abbrev-ref HEAD`). If it is the integration branch itself (`develop`/`main`/`master`), STOP: work must be on a feature branch to open an MR. (In plain mode: "This needs to be on its own branch first — a developer can help set that up.")
 

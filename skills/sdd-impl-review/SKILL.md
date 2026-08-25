@@ -25,7 +25,7 @@ This skill operates under the `CONTEXT_ROOT` handed to it (the resolved base); `
 2. Argument is a bare `<change-id>` → resolve `CONTEXT_ROOT` by globbing `context/*/changes/<change-id>/` (legacy cross-root search) and, for flat roots, `<dir>/context/changes/<change-id>/` (look for `plan.md`): exactly one match → use it and derive `CONTEXT_ROOT` (and `<app>`, for legacy roots) from the resolved path; more than one match → ask which root; zero matches → the not-found branch below. Then fresh review on `$CONTEXT_ROOT/changes/<change-id>/plan.md`. (Fallback: repos with no workspace layout use flat `$CONTEXT_ROOT/changes/<change-id>/plan.md`.)
 3. Plan path provided (e.g. `@$CONTEXT_ROOT/changes/<change-id>/plan.md`, legacy: `@context/<app>/changes/<change-id>/plan.md`) → fresh review on that plan; derive `CONTEXT_ROOT` (and `<app>`, for legacy roots) from the path.
 4. Phase number provided (e.g. "phase 3") → review only that phase
-5. No argument → enumerate `context/*/changes/*/change.md` (legacy cross-root search) and flat `$CONTEXT_ROOT/changes/*/change.md`; pick the most recently `updated` change with `status` in `{implementing, implemented}` and confirm via Ask the user:
+5. No argument → enumerate `context/*/changes/*/change.md` (legacy cross-root search) and flat `$CONTEXT_ROOT/changes/*/change.md`; pick the most recently `updated` change with `status` in `{implementing, implemented, impl_reviewed}` and confirm via Ask the user:
 
 This skill receives a plan path or `<change-id> [phase N]` — it does NOT ask for the root/app; it is resolved from the path/glob above ("ask once, store it").
 
@@ -276,7 +276,7 @@ multiSelect: false
 
 ### Saving the report
 
-Save to `$CONTEXT_ROOT/changes/<change-id>/reviews/impl-review.md` (or `$CONTEXT_ROOT/changes/<change-id>/reviews/impl-review-phase-N.md` for a phase-scoped review). Update `change.md`: set `status: impl_reviewed` and `updated: <today>`. If the user opts to triage, queue any "fix in plan/code" follow-ups into `$CONTEXT_ROOT/changes/<change-id>/follow-ups/review-fixes.md`.
+Save to `$CONTEXT_ROOT/changes/<change-id>/reviews/impl-review.md` (or `$CONTEXT_ROOT/changes/<change-id>/reviews/impl-review-phase-N.md` for a phase-scoped review). Apply `../sdd-run/references/verification-freshness.md`: only a **full-plan review with every Automated Progress row complete** may atomically set `status: impl_reviewed` and write `verified_source: review:<repo-relative-report-path>`, `verified_verdict`, `verified_fingerprint`, `verified_at`, and `updated`. A phase-scoped/early review saves its report but leaves lifecycle status/snapshot unchanged, so it cannot satisfy roadmap dependents. If the user opts to triage, queue any "fix in plan/code" follow-ups into `$CONTEXT_ROOT/changes/<change-id>/follow-ups/review-fixes.md`.
 
 ```markdown
 <!-- IMPL-REVIEW-REPORT -->
@@ -419,6 +419,8 @@ multiSelect: false
 
 After each decision, if working from a saved file, update its `Decision:` field.
 
+**Freshness after triage edits:** the saved review records what was inspected, while the canonical snapshot records whether it still matches current code/plan. If any triage decision edits implementation code **or the plan it was reviewed against**, immediately set `change.md.status: implemented` and `updated: <today>` (snapshot fields may remain as ignored audit history). The review file is stale; require a fresh full review before MR/archive/dependents. Decisions that only ACCEPT/SKIP/DISMISS without editing leave an existing full-review snapshot current once every PENDING decision is resolved; a phase-only report never creates one. A REJECTED verdict still requires a fresh review even when all findings were fixed.
+
 ### Summary
 
 ```
@@ -435,6 +437,8 @@ After each decision, if working from a saved file, update its `Decision:` field.
 ```
 
 If there's a saved report, update it with final decisions. Mark the review task completed.
+
+If freshness was invalidated by a triage edit, append: `Verification is stale after fixes; change.md is implemented and requires a fresh full review.` Do not call the change reviewed until that new pass writes a current disposition.
 
 ## Notes
 
