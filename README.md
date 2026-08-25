@@ -2,7 +2,7 @@
 
 Personal Claude Code marketplace. Currently ships one plugin:
 
-- **sdd-skills** — the spec-driven development (SDD) skill family (26 `sdd-*` skills), including the `/sdd-run` Agent Factory layer.
+- **sdd-skills** — the spec-driven development (SDD) skill family (27 `sdd-*` skills), including two orchestration layers: the `/sdd-run` Agent Factory (one change) and the `/sdd-project-run` Project Factory (a whole project).
 
 ## Install
 
@@ -110,6 +110,7 @@ Listed roughly in pipeline order.
 | `sdd-e2e` | Drive browser-level (E2E) phases against the running app |
 | `sdd-goal-implement` | Autonomous/unattended plan execution |
 | `sdd-run` | **Agent Factory**: drive a change from its current state — route prep, select strategy, spawn scoped workers, verify |
+| `sdd-project-run` | **Project Factory**: drive a whole project from its current stage — route project prep, execute ready roadmap items via `/sdd-run`, observe, re-plan |
 | `sdd-impl-review` | Review the implementation against the plan (interactive) |
 | `sdd-impl-review-ci` | Run implementation review non-interactively in CI |
 | `sdd-mr` | Open a merge request for a completed change (plain-mode hand-off) |
@@ -165,7 +166,41 @@ Graph: P1 → {P2 ∥ P3} → P4
 
 P1 runs and is integrated + committed; P2 then P3 run as scoped workers, one at a time, each integrated through the full gate stack and committed; P4 runs last; the reviewer pass closes the run. If P2 fails after its bounded retry, P3 (independent) still lands before the run stops — that failure isolation, not concurrency, is what the DAG buys.
 
-Individual skills remain the direct-control path — nothing routes you through the factory. See `skills/sdd-run/SKILL.md` and its `references/` for the full contracts (strategy selection, worker spec, factory-log format).
+Individual skills remain the direct-control path — nothing routes you through the factory. See `skills/sdd-run/SKILL.md` and its `references/` for the full contracts (strategy selection, worker spec, factory-log format, and the `FACTORY RESULT` run-result contract a parent orchestrator consumes).
+
+## The Project Factory (`/sdd-project-run`)
+
+One level above `/sdd-run`. The toolkit now has three explicit layers, each with its own responsibility boundary and a stable contract to the layer above:
+
+```
+Atomic / specialist skills      shape · prd · roadmap · frame · research · plan ·
+        │                       implement · review · mr · archive · …
+        ▼
+Single-change orchestration     /sdd-run — one change: prep routing, execution
+        │                       strategy, scoped workers, gates, verification.
+        │                       Returns a FACTORY RESULT block.
+        ▼
+Project-level orchestration     /sdd-project-run — project lifecycle: stage
+                                derivation, roadmap sequencing, change selection,
+                                observation, replanning, project-log.md.
+```
+
+`/sdd-run` means *Agent Factory for a Single Change* — that boundary is preserved. `/sdd-project-run` owns everything above it: it derives the project's stage from artifacts (no new state files), routes missing preparation to the owning interview skills (never inventing their artifacts), treats `roadmap.md` as the project dependency graph (deriving each item's effective state at runtime — it never writes roadmap statuses; `/sdd-archive` stays the sole `done`-writer), selects the next executable item with `/sdd-roadmap`'s own hand-off rule, delegates it to `/sdd-run` one change at a time, classifies the returned `FACTORY RESULT`, and fires a roadmap re-evaluation gate whenever a run reports a `Project impact` — the loop is observe → decide → execute → observe → replan, not a fixed pipeline.
+
+Typical flows:
+
+```
+Existing project with a roadmap        Greenfield                         Resume after interruption
+/sdd-project-run                       /sdd-project-run                   /sdd-project-run
+→ derive stage: roadmapped             → derive stage: uninitialized      → re-derive stage + item states
+→ derive item states                   → /sdd-init → /sdd-shape           → resume the in-flight change
+→ select ready Change ID               → /sdd-prd → stack step            →   via /sdd-run (its own resume)
+→ /sdd-run <change-id>                 → /sdd-roadmap                     → continue from the correct point
+→ classify result → closeout           → first ready item → /sdd-run
+→ next item … → PROJECT COMPLETE       → …
+```
+
+Attended runs preserve every composed skill's human gates (interviews, commit approvals, archive warnings) and add a closeout offer plus a continue-gate between changes. Unattended runs (`--auto`) STOP — with the concrete human action named — on anything human-dependent: missing interview artifacts, stack/architecture choices, blocking roadmap unknowns, NEEDS ATTENTION/REJECTED verdicts, roadmap-impacting discoveries. Orchestration history lands in `foundation/<slug>/project-log.md` (append-only observability — delete-safe, never a second source of truth). Contracts and the derived state model: `skills/sdd-project-run/SKILL.md` + its `references/`.
 
 ## Notes
 

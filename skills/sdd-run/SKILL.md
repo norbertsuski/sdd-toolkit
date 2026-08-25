@@ -44,7 +44,7 @@ This skill operates under the `CONTEXT_ROOT` it resolves for the given change-id
 
 **Use when**: a change exists (or should exist) and the user wants it *driven* — "get this change done", "continue from wherever it is", "execute this plan, parallelize if it helps". Also when returning to a half-done change after an interruption.
 
-**Skip when**: the user wants direct control of one step — run the owning skill instead (`/sdd-plan`, `/sdd-implement`, `/sdd-impl-review`, …); the whole manual pipeline keeps working without this skill. Also skip for whole-roadmap sequencing (`/sdd-roadmap`) or the phased test rollout (`/sdd-test-plan` — its own orchestrator).
+**Skip when**: the user wants direct control of one step — run the owning skill instead (`/sdd-plan`, `/sdd-implement`, `/sdd-impl-review`, …); the whole manual pipeline keeps working without this skill. Also skip for whole-roadmap sequencing (`/sdd-roadmap` to generate it, `/sdd-project-run` to drive it — the project-level factory one layer above this one) or the phased test rollout (`/sdd-test-plan` — its own orchestrator).
 
 ## Relationship to other skills
 
@@ -57,6 +57,7 @@ This skill operates under the `CONTEXT_ROOT` it resolves for the given change-id
 | `/sdd-impl-review`, `/sdd-impl-review-ci` | Independent verification — part of the factory's completion contract (Step 8). Attended runs run `/sdd-impl-review`; unattended runs dispatch a reviewer subagent applying `../sdd-impl-review-ci/references/impl-review-instructions.md`, including its APPROVED / NEEDS ATTENTION / REJECTED verdict model. |
 | `/sdd-mr`, `/sdd-archive` | Downstream closeout. The factory names them in its final report; it does not run them unasked. |
 | `/sdd-help` | Read-only sibling. `/sdd-help` reports state and recommends; `/sdd-run` acts on that same derivation. |
+| `/sdd-project-run` | **Parent orchestrator** (the Project Factory). It selects a roadmap item's Change ID, invokes this skill for it — one change at a time — and consumes the `FACTORY RESULT` block (Step 11, `references/run-result-contract.md`) to decide what happens next at project level. This skill neither knows nor cares whether it was invoked by a human or by the project factory: same process, same gates, same outputs. Whole-project sequencing stays out of this skill by design. |
 
 ## Modes
 
@@ -215,13 +216,13 @@ STOP hygiene: completed rows stay flipped, committed phases stay committed, in-p
 Two persistence surfaces, both existing conventions:
 
 - **`## Progress` in `plan.md`** — the single source of truth for *work* state, exactly as today. The factory (or its executors) flips rows and writes SHAs; nothing new.
-- **`$CONTEXT_ROOT/changes/<change-id>/factory-log.md`** — append-only record of *orchestration* state: per run, the strategy + why, the plan fingerprint, the dependency graph, per-phase worker outcomes, retries, verification result. Format and parsing contract: `references/factory-log-format.md`. It exists so a resumed run (and a reviewing human) can see which strategy was chosen and why without re-deriving — it is **not** a second progress tracker; if it disagrees with Progress, Progress wins. Mid-run entries land with each phase commit (Step 7); the closing lines (verification, result) are staged into the executor's epilogue commit alongside `plan.md` and `change.md` — extend the epilogue's staging set with `factory-log.md` when the factory drove the run. A run that authored **no** phase commits (a verification-only route: all Automated rows were already done) still commits its log entry — one small `chore(<change-id>): factory log (verification)` commit staging `factory-log.md` (and `change.md` if its status advanced); never leave the record stranded uncommitted.
+- **`$CONTEXT_ROOT/changes/<change-id>/factory-log.md`** — append-only record of *orchestration* state: per run, the strategy + why, the plan fingerprint, the dependency graph, per-phase worker outcomes, retries, verification result. Format and parsing contract: `references/factory-log-format.md`. It exists so a resumed run (and a reviewing human) can see which strategy was chosen and why without re-deriving — it is **not** a second progress tracker; if it disagrees with Progress, Progress wins. Mid-run entries land with each phase commit (Step 7); the closing lines (verification, project impact, result) are staged into the executor's epilogue commit alongside `plan.md` and `change.md` — extend the epilogue's staging set with `factory-log.md` when the factory drove the run. A run that authored **no** phase commits (a verification-only route: all Automated rows were already done) still commits its log entry — one small `chore(<change-id>): factory log (verification)` commit staging `factory-log.md` (and `change.md` if its status advanced); never leave the record stranded uncommitted.
 
 Re-running `/sdd-run <change-id>` after an interruption: Step 2 re-derives state from disk, Step 3 finds the pending Automated rows, completed phases are skipped, and the recorded graph is reused when the plan fingerprint matches (Step 3). No other state is needed.
 
 ### Step 11: Final report
 
-End every run that reached execution or verification — complete or stopped — with a run report (the `/sdd-goal-implement` report, extended with the factory sections). A run that stopped in Step 2 on missing preparation prints its routing message only: nothing was orchestrated, so there is no report and no `factory-log.md` entry.
+End every run that reached execution or verification — complete or stopped — with a run report (the `/sdd-goal-implement` report, extended with the factory sections). A run that stopped in Step 2 on missing preparation prints its routing message only: nothing was orchestrated, so there is no report and no `factory-log.md` entry — but it still emits the `FACTORY RESULT` block below (with `Stop class: missing-prep` and most fields `—`), so a parent orchestrator gets one uniform surface at every terminal point.
 
 ```
 RUN REPORT — <change-id>
@@ -247,6 +248,8 @@ Suggested follow-up: /sdd-impl-review <change-id>   (or /sdd-mr <change-id> when
 
 When `audience: plain`, give the report per the plain-mode contract (what got built, what still needs a person) and suggest `/sdd-mr` instead of `/sdd-impl-review`.
 
+**Emit the `FACTORY RESULT` block** as the very last output of every invocation — after the run report when one was printed, alone after a Step 2 preparation stop. Format, field semantics, and the `Project impact` derivation rules: `references/run-result-contract.md`. This block is the stable outcome contract a parent orchestrator (`/sdd-project-run`) consumes — classify honestly (`Outcome`, `Stop class`, `Verification`, `Project impact`), keep each list line to one sentence, and never suppress a roadmap-reaching discovery to make the run look cleaner. The block itself is a transcript surface, but its **`Project impact` classification is also persisted** — written into the run's `factory-log.md` closing lines (`references/factory-log-format.md`) alongside the verification verdict, so a parent resuming after this session can still see that the run discovered something roadmap-reaching.
+
 ## Critical guardrails
 
 1. **Compose, never re-implement.** Prep artifacts come only from their owning skills. Execution follows the existing executor contracts. Verification reuses the existing review dimensions. If the factory is doing something no existing skill defines, it should be orchestration — not domain work.
@@ -262,6 +265,7 @@ When `audience: plain`, give the report per the plain-mode contract (what got bu
 ## Notes
 
 - Backward compatibility is a feature: every artifact this skill reads and writes (`change.md`, `plan.md` + `## Progress`, `reviews/*`) keeps its existing schema. The only new artifact is `factory-log.md`, which no other skill depends on. All individual skills keep working standalone.
+- The `FACTORY RESULT` block (`references/run-result-contract.md`) is additive: it changes no artifact, and a human-driven run loses nothing by ignoring it. Its consumer is the project-level factory (`/sdd-project-run`), which delegates one change at a time to this skill and classifies the outcome from the block instead of parsing prose.
 - The optional per-phase `**Depends on**:` line (see `/sdd-plan`) is the plan author's way to declare phase independence explicitly; without it the factory infers conservatively and mostly stays sequential — which is correct, not a limitation.
 - Host capability mapping (what the factory needs from the runtime, and what degrades how) lives in `references/worker-contract.md` — subagent dispatch with isolated context, and per-agent tool restriction where supported. Concurrent dispatch is deliberately not used (Step 6, invariant 3); if a future host provides worktree isolation with a working toolchain inside it, that is the extension point for real concurrency. Nothing here requires a database, broker, daemon, or external orchestrator: files, markdown, git, subagents.
 - Phase-type execution routing (test-first, browser-level) rides on the executors' own gates: `/sdd-tdd` and `/sdd-e2e` already decide per phase whether they fit and redirect otherwise. The factory does not duplicate that detection — when the user asks for a variant, it routes the relevant phases there and lets the variant's gate rule.

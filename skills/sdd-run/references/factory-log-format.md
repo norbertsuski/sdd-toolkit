@@ -37,6 +37,7 @@ One `# Factory Log — <change-id>` H1, then one `## Run <K> — <YYYY-MM-DD>` s
 
 - **Verification**: <"impl-review: <verdict>" | "reviewer: APPROVED" | "reviewer: NEEDS ATTENTION (2 findings)" | "reviewer: REJECTED (…)" | "SKIPPED (trivial)" | "SKIPPED (declined)">
 - **Human interventions**: <"none" | one line each>
+- **Project impact**: <none | spec | architecture | roadmap — one line per named impact>   (mirrors the run's FACTORY RESULT; see `run-result-contract.md`)
 - **Result**: complete | stopped (<one-line reason>)
 
 ## Run 2 — 2026-08-25
@@ -54,5 +55,6 @@ One `# Factory Log — <change-id>` H1, then one `## Run <K> — <YYYY-MM-DD>` s
 - **Scope expansions** (`SCOPE+`) are recorded as a one-line note under the phases table when they occur: `SCOPE+ P<N>: <paths> (<why>)`.
 - **Plan fingerprint** is how a later run decides whether the recorded graph is still valid: fingerprint match → reuse the graph, re-select strategy over the remaining phases; mismatch → re-derive. Hash the plan file with the `## Progress` section stripped, so the factory's own row-flipping never invalidates the graph.
 - **Commit** is the phase's closing short SHA, mirroring the Progress SHA suffix; `—` for stopped or empty-diff phases.
+- **Project impact** persists the run's `FACTORY RESULT` impact classification (`run-result-contract.md`) so it survives the transcript: a parent orchestrator resuming later must be able to see that a run discovered something roadmap-reaching even when the session that printed the block is gone. `none` is written explicitly.
 - **No secrets, no full logs.** Failure summaries are one line; the transcript and STOP block carry detail.
 - Keep it small: this file exists to make three questions cheap on resume — *what strategy, why, where did it stop* — not to duplicate the transcript.

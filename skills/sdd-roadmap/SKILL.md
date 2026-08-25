@@ -50,6 +50,7 @@ The skill is **AI-native** in four concrete ways: (1) it expresses ordering as a
 - `/sdd-implement` — further downstream. The intermediate lifecycle states (`status: planning`, `in-progress`) are defined here but **not yet wired** in `/sdd-plan` and `/sdd-implement`; today this skill writes only `proposed` / `ready` / `blocked`. Future work will wire the intermediate states.
 - `/sdd-archive` — closes the loop at the end. When a change whose `Change ID` matches a roadmap item is archived, `/sdd-archive` flips that item's `Status` to `done` (in `## At a glance` and in the item's body block) and appends an entry to `## Done`. This skill never pre-populates `## Done`; `/sdd-archive` is its sole writer.
 - `/sdd-frame`, `/sdd-research` — orthogonal. They operate on a single change, not the roadmap.
+- `/sdd-project-run` — downstream consumer (the project-level factory). It reads this roadmap as the project dependency graph, derives each item's effective state at runtime (cross-checking `changes/` and `archive/`), selects the next executable item with this skill's own Step 10 hand-off rule, and delegates it to `/sdd-run`. It **never writes** roadmap statuses, items, or `## Done` — `/sdd-archive` stays the sole `done`-writer, and roadmap-impacting discoveries route back here (regeneration) or to a human hand-edit, never to an orchestrator edit.
 
 ## Initial Response
 

@@ -46,12 +46,12 @@ The result is `<project-slug>`.
 
 ## Resolution
 
-1. Resolve `<project-slug>` to a foundation folder by globbing `context/*/foundation/<project-slug>/` (never match under `.../foundation/archive/…`). A valid project folder contains at least one of `shape-notes.md`, `prd.md`, `roadmap.md`.
-   - **Exactly one match** → use it. Derive `<app>` from the matched path (`context/<app>/foundation/…`).
-   - **More than one match** → the same slug exists under multiple apps. Ask the user which app to archive, then proceed with the chosen path.
-   - **Zero matches** → it may already be archived. Check `context/*/foundation/archive/*-<project-slug>` for a directory whose name ends with `-<project-slug>`. If found, print `error: project "<project-slug>" is already archived at <path>.` and STOP. Otherwise print `error: no project folder at context/*/foundation/<project-slug>/. Run `ls -d context/*/foundation/*/ | grep -v /foundation/archive/` to list active projects.` and STOP.
+1. Resolve `<project-slug>` to a foundation folder. If the argument was a full path, it reveals the root directly — use it. Otherwise **discover every context root** per `../sdd-shape/references/context-resolution.md` (find each `context/.sdd.yml`, excluding vendor/build dirs) and search each root for `<CONTEXT_ROOT>/foundation/<project-slug>/` — a flat root `R` checks `R/foundation/<project-slug>/`; a legacy root `R` checks each `R/<app>/foundation/<project-slug>/`. Never match under `…/foundation/archive/…`. Repos predating the `.sdd.yml` marker fall back to the legacy globs `context/*/foundation/<project-slug>/` and flat `context/foundation/<project-slug>/`. A valid project folder contains at least one of `shape-notes.md`, `prd.md`, `roadmap.md`.
+   - **Exactly one match (across all roots)** → use it. Set `CONTEXT_ROOT` to that root (and derive `<app>` when the match is a legacy root — every `context/<app>/…` path below then reads as `$CONTEXT_ROOT/…`).
+   - **More than one match** → the same slug exists under multiple roots/apps. Ask the user which to archive, then proceed with the chosen path.
+   - **Zero matches** → it may already be archived. Check every discovered root's `foundation/archive/*-<project-slug>` (plus the legacy fallback `context/*/foundation/archive/*-<project-slug>`) for a directory whose name ends with `-<project-slug>`. If found, print `error: project "<project-slug>" is already archived at <path>.` and STOP. Otherwise print `error: no project folder named <project-slug> found under any discovered context root. Run `ls -d "$CONTEXT_ROOT"/foundation/*/ | grep -v /foundation/archive/` (per root) to list active projects.` and STOP.
 
-   _(Flat-layout repos: glob `context/foundation/<project-slug>/` and `context/foundation/archive/*-<project-slug>` instead; there is no `<app>` segment.)_
+   _(Flat roots have no `<app>` segment — drop it from every `context/<app>/…` path in the rest of this skill, exactly as the header note says.)_
 
 ## Hard blocks
 
@@ -77,7 +77,12 @@ Commit or stash them first, then re-run /sdd-archive-project.
 Commit them first or `git reset` to unstage, then re-run /sdd-archive-project.
 ```
 
-**3. In-flight changes still pointing at this project.** Glob `context/<app>/changes/*/change.md`. For each, read its frontmatter `roadmap:` and `status:`. If `roadmap:` resolves to this project's `context/<app>/foundation/<project-slug>/roadmap.md` **and** `status:` is not `archived`, collect that change-id. If any were collected, block and print:
+**3. In-flight changes still pointing at this project.** Glob `context/<app>/changes/*/change.md`. For each, read its frontmatter `change_id:` and `status:`, and detect whether the change belongs to this project by **either** signal:
+
+- **Change-ID match (primary — the family's standard link, same as `/sdd-archive`)**: the project's `roadmap.md` (if it exists) has an item whose `Change ID` equals this `change_id` exactly.
+- **`roadmap:` frontmatter (secondary, when present)**: a `roadmap:` field that resolves to this project's `context/<app>/foundation/<project-slug>/roadmap.md`. (No shipped skill writes this field today; honor it if a workflow added it by hand.)
+
+If either signal matches **and** `status:` is not `archived`, collect that change-id. If any were collected, block and print:
 
 ```
 ✗ Cannot archive: these active changes still point at this project:
