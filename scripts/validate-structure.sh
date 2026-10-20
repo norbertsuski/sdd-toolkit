@@ -182,12 +182,13 @@ done
 ok "project-state eval catalog covers lifecycle, freshness, MR, impact, and routing"
 
 # --- 12. CI runs this validator -----------------------------------------
-[[ -f .gitlab-ci.yml ]] \
-  && grep -q "bash scripts/validate-structure.sh" .gitlab-ci.yml \
-  && grep -q "bash scripts/validate-orchestration-evals.sh" .gitlab-ci.yml \
+CI_FILE=.github/workflows/validate.yml
+[[ -f "$CI_FILE" ]] \
+  && grep -qF "run: bash scripts/validate-structure.sh" "$CI_FILE" \
+  && grep -qF "run: bash scripts/validate-orchestration-evals.sh" "$CI_FILE" \
   && [[ -f scripts/validate-orchestration-evals.sh ]] \
-  && ok "GitLab CI runs structural and deterministic orchestration evals" \
-  || err ".gitlab-ci.yml does not run both orchestration validators"
+  && ok "GitHub Actions runs structural and deterministic orchestration evals" \
+  || err "$CI_FILE does not run both orchestration validators"
 
 echo
 if [[ $fail -eq 0 ]]; then

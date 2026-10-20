@@ -1,0 +1,14 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate-sdd-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/validate-structure.sh
+      - run: bash scripts/validate-orchestration-evals.sh

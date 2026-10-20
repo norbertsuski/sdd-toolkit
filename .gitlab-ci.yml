@@ -1,5 +1,0 @@
-validate-sdd-contracts:
-  image: bash:5.2
-  script:
-    - bash scripts/validate-structure.sh
-    - bash scripts/validate-orchestration-evals.sh
