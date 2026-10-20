@@ -7,7 +7,7 @@ Personal Claude Code marketplace. Currently ships one plugin:
 ## Install
 
 ```
-/plugin marketplace add https://gitlab.com/norbert.suski/sdd-toolkit.git
+/plugin marketplace add https://github.com/norbertsuski/sdd-toolkit.git
 /plugin install sdd-skills@sdd-toolkit
 ```
 
@@ -65,7 +65,7 @@ globally for all projects (~/.cursor/skills/)? Use my answer as DEST.
 
 Then:
 1. Get the source: use my local clone of
-   https://gitlab.com/norbert.suski/sdd-toolkit.git if I have one open, otherwise
+   https://github.com/norbertsuski/sdd-toolkit.git if I have one open, otherwise
    clone it to a temp directory.
 2. Copy every `skills/sdd-*` folder into DEST, preserving each folder's structure
    (its SKILL.md and any references/ subfolder) so cross-skill relative links like
@@ -80,8 +80,8 @@ Notes:
   reads. To make a skill command-only (no automatic activation), add
   `disable-model-invocation: true` to its `SKILL.md` frontmatter.
 - Cursor can also import remote skills via **Customize → Remote Rule (GitHub)** with
-  a repo URL — but this repo is on GitLab, so the `cp -R` above (or a local clone)
-  is the reliable path.
+  this repo's URL (https://github.com/norbertsuski/sdd-toolkit); the `cp -R` above
+  (or a local clone) works too.
 
 ## The SDD skills
 
