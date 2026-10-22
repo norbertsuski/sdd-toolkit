@@ -148,11 +148,11 @@ Read `references/scaffold-merge.md` now. It carries the full mechanic for the th
 
 Sequence:
 
-1. Resolve the `cmd_template` from the chosen card. Substitute `{name}` and `{pm}` per the strategy in scope (see `scaffold-merge.md` § Substitution rules). The `{pm}` fallback is the card's `toolchain.package_manager` if the hand-off omits the field.
+1. Resolve the `cmd_template` from the chosen card. Substitute `{name}` (= `project_name`), `{module}` (= `project_name` with `-` → `_`) and `{pm}` (see `scaffold-merge.md` § Substitution rules); substitution is identical for every strategy. The `{pm}` fallback is the card's `toolchain.package_manager` if the hand-off omits the field.
 2. Dispatch on `cwd_strategy` (resolved at Step 1 from `bootstrapper-config.yaml`, defaulting to `subdir-then-move`):
-   - **`subdir-then-move`** — run the resolved command with `{name}=.bootstrap-scaffold`. On exit code 0, apply the conflict matrix moving files up into cwd, then delete `.bootstrap-scaffold/`.
-   - **`native-cwd`** — run the resolved command with `{name}=.` directly in cwd. No merge step. Pre-flight: list the files the CLI is about to touch, surface them in conversation before exec.
-   - **`git-clone`** — run the resolved command with `{name}=.bootstrap-scaffold`. On exit code 0, delete `.bootstrap-scaffold/.git/` before applying the conflict matrix and moving files up. Then delete `.bootstrap-scaffold/`.
+   - **`subdir-then-move`** — run the resolved command inside a fresh `.bootstrap-scaffold/` staging directory; it creates `.bootstrap-scaffold/<project_name>/`. On exit code 0, apply the conflict matrix moving that directory's files up into cwd, then delete `.bootstrap-scaffold/`.
+   - **`native-cwd`** — run the resolved command directly in cwd (the template itself targets `.`). No merge step. Pre-flight: list the files the CLI is about to touch, surface them in conversation before exec.
+   - **`git-clone`** — run the resolved command inside `.bootstrap-scaffold/`, as for `subdir-then-move`. On exit code 0, delete `.bootstrap-scaffold/<project_name>/.git/` before applying the conflict matrix and moving files up. Then delete `.bootstrap-scaffold/`.
 3. Capture stdout, stderr, and the exit code into the in-memory verification record regardless of outcome.
 4. **CLI failure is HARD-STOP.** If the exit code is non-zero, run the CLI failure handling path in `scaffold-merge.md` § CLI failure handling: leave `.bootstrap-scaffold/` in place, do not apply the conflict matrix, write a partial `verification.md` with `phase_3_status: failed`, set the clipboard to `/sdd-bootstrapper`, print the failure summary, and STOP. Do not advance to Step 3.
 5. On exit code 0, print one summary line per the format in `scaffold-merge.md` § Surfacing the result. Stage the file-by-file move log into the in-memory verification record. Proceed to Step 3.

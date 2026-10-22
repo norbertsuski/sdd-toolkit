@@ -64,7 +64,7 @@ Do NOT add ecosystem-incompatible values here. The value must match the chosen s
 
 ### `project_name` (string, required)
 
-Kebab-case. Drawn from PRD's `project` field unless the user overrode it during the project-name confirmation step. This is the directory name `/sdd-bootstrapper` will scaffold.
+Kebab-case, starting with a lowercase letter (`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`). Drawn from PRD's `project` field unless the user overrode it during the project-name confirmation step. This is the project name `/sdd-bootstrapper` passes to the starter's CLI (`{name}`, and `{module}` with `-` → `_`); the leading letter keeps it valid as an npm package, Cargo crate, Python module and Dart package name.
 
 ### `hints` (object, required)
 

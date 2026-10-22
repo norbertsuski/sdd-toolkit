@@ -247,11 +247,11 @@ If `false` count is 0 or 1: no nudge; proceed to write.
 
 **Trigger**: always, after Q7 (or Q8 on custom).
 
-Pre-step: kebab-case the PRD's `project` field (e.g., "Recipe Fridge" → `recipe-fridge`).
+Pre-step: kebab-case the PRD's `project` field (e.g., "Recipe Fridge" → `recipe-fridge`). If the result starts with a digit, prefix it with `app-` (e.g., "3D Viewer" → `app-3d-viewer`) — the name must match `handoff-schema.md`'s `project_name` pattern. Normalise an override the same way.
 
 **Project-name prompt**:
 
-Ask the user: "Project name for the hand-off (will be the directory name `/sdd-bootstrapper` scaffolds)?" with these options:
+Ask the user: "Project name for the hand-off (the project/package name `/sdd-bootstrapper` gives the starter's CLI)?" with these options:
 - "`<kebab-cased project>` (Recommended — from PRD)" — Use what's already in PRD.
 - "Override with a different name" — Capture a free-text replacement.
 

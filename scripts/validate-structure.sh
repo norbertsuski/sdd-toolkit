@@ -202,6 +202,52 @@ for family in js python ruby rust go dotnet java php dart multi; do
 done
 ok "bootstrapper starters resolve in the registry; audit_commands cover every language family"
 
+# --- 12b. every cmd_template honours its cwd_strategy's substitution contract
+# See skills/sdd-bootstrapper/references/scaffold-merge.md § Substitution rules.
+MERGE_DOC=skills/sdd-bootstrapper/references/scaffold-merge.md
+cmd_templates() {  # "<starter_id>\t<cmd_template>" per registry card
+  awk '/^starters:/{on=1;next} /^[^ #]/{on=0}
+       on && /^  [A-Za-z0-9_-]+:[[:space:]]*$/{id=$1;sub(/:$/,"",id)}
+       on && /^    cmd_template:/{t=$0;sub(/^    cmd_template:[[:space:]]*/,"",t);q=substr(t,1,1);
+         if(q=="\"" || q=="'"'"'"){t=substr(t,2,length(t)-2)} print id "\t" t}' "$REGISTRY"
+}
+strategy_of() {  # resolved cwd_strategy for a starter (default subdir-then-move)
+  awk -v id="$1" '/^starters:/{on=1;next} /^[^ #]/{on=0}
+       on && /^  [A-Za-z0-9_-]+:[[:space:]]*$/{cur=$1;sub(/:$/,"",cur)}
+       on && cur==id && /^    cwd_strategy:/{print $2;found=1}
+       END{if(!found)print "subdir-then-move"}' "$BOOT_CFG"
+}
+templates=$(cmd_templates)
+for id in $registered; do
+  grep -q "^$id	" <<<"$templates" || err "registry starter '$id' has no cmd_template"
+done
+while IFS=$'\t' read -r id tpl; do
+  strategy=$(strategy_of "$id")
+  case "$strategy" in
+    subdir-then-move|native-cwd|git-clone) ;;
+    *) err "starter '$id' has unknown cwd_strategy '$strategy'"; continue ;;
+  esac
+  unknown=$(grep -oE '\{[^}]*\}' <<<"$tpl" | grep -vxE '\{(name|module|pm)\}' | sort -u | tr '\n' ' ')
+  [[ -z "$unknown" ]] || err "starter '$id' cmd_template uses unknown placeholder(s): $unknown"
+  [[ "$tpl" != *.bootstrap-scaffold* ]] \
+    || err "starter '$id' cmd_template hard-codes .bootstrap-scaffold (bootstrapper owns the staging dir)"
+  if [[ "$strategy" == native-cwd ]]; then
+    grep -qE '(cd|mkdir) \{name\}|\{name\}/' <<<"$tpl" \
+      && err "native-cwd starter '$id' uses {name} as a directory; native-cwd templates write into '.'"
+  else
+    [[ "$tpl" == *"{name}"* ]] \
+      || err "$strategy starter '$id' cmd_template never creates ./{name}/ (no {name} placeholder)"
+  fi
+  if [[ "$tpl" == "git clone "* ]]; then
+    [[ "$strategy" == git-clone ]] || err "starter '$id' clones a repo but its cwd_strategy is '$strategy', not git-clone"
+  else
+    [[ "$strategy" != git-clone ]] || err "git-clone starter '$id' cmd_template does not start with 'git clone'"
+  fi
+  grep -qF "| \`$id\` | $strategy |" "$MERGE_DOC" \
+    || err "$MERGE_DOC resolved-invocation table has no '$id' row with strategy '$strategy'"
+done <<<"$templates"
+ok "every cmd_template matches its cwd_strategy contract and is documented in scaffold-merge.md"
+
 # --- 13. CI runs this validator -----------------------------------------
 CI_FILE=.github/workflows/validate.yml
 [[ -f "$CI_FILE" ]] \

@@ -14,13 +14,15 @@
 #                      slot. `null` means "no built-in audit tool for this ecosystem"; Step 3
 #                      skips the audit and notes the skip in verification.md.
 #
-# cwd_strategy values (see references/scaffold-merge.md for the full mechanic):
-#   subdir-then-move — substitute `{name}=.bootstrap-scaffold`, run cmd, apply conflict
-#                       policy moving files up, delete temp dir.
-#   native-cwd       — substitute `{name}=.`, run cmd directly in cwd; no merge step;
-#                       conflict policy still applies pre-flight.
-#   git-clone        — same as subdir-then-move plus delete `.bootstrap-scaffold/.git/`
-#                       before move-up so the upstream starter's history does not leak.
+# cwd_strategy values (see references/scaffold-merge.md for the full mechanic). `{name}` is
+# always project_name; the strategy decides where the command runs, not what it is called:
+#   subdir-then-move — run cmd inside the staging dir `.bootstrap-scaffold/`; the template
+#                       creates `.bootstrap-scaffold/{name}/`, which the conflict policy moves
+#                       up into cwd; delete the staging dir.
+#   native-cwd       — run cmd directly in cwd; the template writes into `.` itself; no merge
+#                       step; conflict policy still applies pre-flight.
+#   git-clone        — same as subdir-then-move; the cloned `.git/` is dropped before move-up
+#                       so the upstream starter's history does not leak.
 
 starters:
   next:
@@ -32,7 +34,8 @@ starters:
   t3:
     cwd_strategy: subdir-then-move
   hono:
-    cwd_strategy: native-cwd
+    # create-hono prompts on a non-empty target dir, and cwd always holds context/.
+    cwd_strategy: subdir-then-move
   expo:
     cwd_strategy: subdir-then-move
   sdd-astro-starter:

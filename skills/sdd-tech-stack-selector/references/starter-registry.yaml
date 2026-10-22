@@ -16,6 +16,16 @@
 #   verified    — bootstrapper has been run end-to-end on this stack.
 #   first-class — registered with a valid CLI; expected to work but not battle-tested.
 #   best-effort — limited support; manual steps likely.
+#
+# cmd_template placeholders (substitution rules: sdd-bootstrapper/references/scaffold-merge.md):
+#   {name}   — project_name from the hand-off, verbatim (kebab-case). The project/package name the CLI
+#              sees. Under subdir-then-move / git-clone the template must create `./{name}/` (bootstrapper
+#              runs it inside its staging dir and moves `{name}/` up); under native-cwd the template
+#              writes into `.` literally and `{name}` is only ever a name flag, never a directory.
+#   {module} — project_name with `-` replaced by `_`, for ecosystems whose identifiers forbid hyphens
+#              (Python modules, Dart packages).
+#   {pm}     — resolved package manager.
+#   No other placeholders; scripts/validate-structure.sh enforces the set.
 
 ---
 recommended_defaults:
@@ -513,7 +523,7 @@ starters:
     toolchain:
       package_manager: uv
     pre: "pip install django"
-    cmd_template: "django-admin startproject {name} ."
+    cmd_template: "django-admin startproject {module} ."
     deployment_defaults: [fly, railway, render, self-host]
     bootstrapper_confidence: verified
     alternatives_to_consider: [fastapi]
@@ -543,7 +553,7 @@ starters:
     toolchain:
       package_manager: uv
     pre: "uv pip install fastapi uvicorn"
-    cmd_template: "uv init {name} && uv add fastapi uvicorn"
+    cmd_template: "uv init --name {name} && uv add fastapi uvicorn"
     deployment_defaults: [fly, railway, render, self-host]
     bootstrapper_confidence: first-class
     alternatives_to_consider: [django]
@@ -633,7 +643,7 @@ starters:
     tags: [java, enterprise]
     toolchain:
       package_manager: maven
-    cmd_template: "curl -s https://start.spring.io/starter.tgz -d dependencies=web,devtools -d type=maven-project -d javaVersion=21 -d groupId=com.example -d artifactId={name} | tar -xzf -"
+    cmd_template: "curl -s https://start.spring.io/starter.tgz -d dependencies=web,devtools -d type=maven-project -d javaVersion=21 -d groupId=com.example -d artifactId={name} -d baseDir={name} | tar -xzf -"
     deployment_defaults: [fly, render, aws-ecs, self-host]
     bootstrapper_confidence: verified
     alternatives_to_consider: []
@@ -866,7 +876,7 @@ starters:
     tags: [dart, cross-platform]
     toolchain:
       package_manager: pub
-    cmd_template: "flutter create -e {name} --org com.example --platforms android,ios,web"
+    cmd_template: "flutter create -e --project-name {module} --org com.example --platforms android,ios,web {name}"
     deployment_defaults: [appstore, playstore, self-host]
     bootstrapper_confidence: verified
     alternatives_to_consider: [expo]
