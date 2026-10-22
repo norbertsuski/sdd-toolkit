@@ -15,7 +15,7 @@ This skill is the third link in the bootstrap chain (`/sdd-shape → /sdd-prd �
 
 The skill is a **decision facilitator over a curated registry**, not a recommendation engine from first principles. It reads PRD priors, asks at most ~6 residual questions on the custom path (or short-circuits to a vetted recommendation on the standard path), reasons over language-aware starter cards in `references/starter-registry.yaml`, and applies four hard-filter quality gates. Rich rationale stays in conversation; the file hand-off is minimal.
 
-The starter registry in `references/starter-registry.yaml` is the **single source of truth** for available starters. `/sdd-bootstrapper` reads it; a CI validator (`scripts/validate-starter-registry-sync.mjs`) prevents bootstrapper from referencing a `starter_id` that does not exist here.
+The starter registry in `references/starter-registry.yaml` is the **single source of truth** for available starters. `/sdd-bootstrapper` reads it; a CI validator (`scripts/validate-structure.sh`) prevents bootstrapper from referencing a `starter_id` that does not exist here.
 
 This skill operates under the `CONTEXT_ROOT` handed to it (or the resolved PRD path it is given) — it does not run its own root discovery. `app:` may be absent for flat roots; do not require it. It resolves `audience` per `../sdd-shape/references/plain-mode.md`'s "Audience resolution": read `$CONTEXT_ROOT/.sdd.local.yml`, else ask+write there; default `technical`. When `audience: plain`, it follows `../sdd-shape/references/plain-mode.md`: it does NOT run the residual technical interview (team composition, deployment target, CI/CD shape, language/framework preferences — a non-technical operator cannot answer these). Instead it selects the recommended agent-friendly starter automatically, records the chosen stack and the rationale in `tech-stack.md` (which is itself the decision record a developer reviews), and gives a plain summary noting a developer can revisit the choices. The `tech-stack.md` schema is unchanged.
 
@@ -270,7 +270,7 @@ hints:
 
 4. **`bootstrapper_confidence` is informational, never blocking.** A `best-effort` confidence does NOT exclude a starter from recommendation; it surfaces in conversation as a heads-up and lands in `hints.bootstrapper_confidence` so bootstrapper can adjust.
 
-5. **One-way validator.** Bootstrapper may not reference a `starter_id` absent from this skill's registry; tech-stack-selector may carry starters bootstrapper hasn't yet wired (those starters carry `bootstrapper_confidence: best-effort` until they're verified end-to-end).
+5. **One-way validator.** Bootstrapper may not reference a `starter_id` absent from this skill's registry (enforced by `scripts/validate-structure.sh`); tech-stack-selector may carry starters bootstrapper hasn't yet wired (those starters carry `bootstrapper_confidence: best-effort` until they're verified end-to-end).
 
 6. **Universal language only.** No private vault paths or organization-specific branding in shipped content. `pnpm validate:no-vault-paths` enforces this in CI. The recommended-defaults registry is multi-language by design; no single starter is "the" recommended path.
 

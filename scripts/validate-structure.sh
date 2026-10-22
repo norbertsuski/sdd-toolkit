@@ -181,7 +181,28 @@ do
 done
 ok "project-state eval catalog covers lifecycle, freshness, MR, impact, and routing"
 
-# --- 12. CI runs this validator -----------------------------------------
+# --- 12. bootstrapper only references registered starters --------------
+# One-way sync: every starter_id keyed under `starters:` in the bootstrapper
+# config must exist in the tech-stack-selector registry (the registry owner).
+BOOT_CFG=skills/sdd-bootstrapper/references/bootstrapper-config.yaml
+REGISTRY=skills/sdd-tech-stack-selector/references/starter-registry.yaml
+starter_keys() {
+  awk '/^starters:/{on=1;next} /^[^ #]/{on=0} on && /^  [A-Za-z0-9_-]+:[[:space:]]*$/{sub(/^  /,"");sub(/:.*/,"");print}' "$1"
+}
+registered=$(starter_keys "$REGISTRY")
+wired=$(starter_keys "$BOOT_CFG")
+[[ -n "$wired" ]] || err "$BOOT_CFG lists no starters"
+for id in $wired; do
+  grep -qx "$id" <<<"$registered" \
+    || err "bootstrapper-config references starter '$id' absent from the tech-stack-selector registry"
+done
+for family in js python ruby rust go dotnet java php dart multi; do
+  grep -qE "^  $family:" "$BOOT_CFG" \
+    || err "bootstrapper-config audit_commands has no entry for language_family '$family'"
+done
+ok "bootstrapper starters resolve in the registry; audit_commands cover every language family"
+
+# --- 13. CI runs this validator -----------------------------------------
 CI_FILE=.github/workflows/validate.yml
 [[ -f "$CI_FILE" ]] \
   && grep -qF "run: bash scripts/validate-structure.sh" "$CI_FILE" \

@@ -2,7 +2,7 @@
 #
 # Owned by: sdd-tech-stack-selector
 # Consumed by: sdd-bootstrapper
-# Validator: scripts/validate-starter-registry-sync.mjs (one-way: bootstrapper-references ⊆ this registry)
+# Validator: scripts/validate-structure.sh (one-way: bootstrapper-references ⊆ this registry)
 #
 # Two top-level keys:
 #   recommended_defaults — small map naming the lead starter for each (product_type, language_family) cell.

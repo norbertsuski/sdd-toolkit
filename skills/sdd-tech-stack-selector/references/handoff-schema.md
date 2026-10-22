@@ -40,7 +40,7 @@ hints:                          # required object; subfields below
 
 ### `starter_id` (string, required)
 
-The key from `references/starter-registry.yaml` `starters:` map. The validator (`scripts/validate-starter-registry-sync.mjs`) ensures bootstrapper only references keys present in this registry; tech-stack-selector is the source of truth.
+The key from `references/starter-registry.yaml` `starters:` map. The validator (`scripts/validate-structure.sh`) ensures bootstrapper only references keys present in this registry; tech-stack-selector is the source of truth.
 
 Examples: `sdd-astro-starter`, `next`, `t3`, `fastapi`, `django`, `rails`, `spring`, `laravel`, `go`, `rust`, `expo`, `flutter`, `dotnet`.
 

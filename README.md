@@ -2,7 +2,7 @@
 
 Personal Claude Code marketplace. Currently ships one plugin:
 
-- **sdd-skills** — the spec-driven development (SDD) skill family (27 `sdd-*` skills), including two orchestration layers: the `/sdd-run` Agent Factory (one change) and the `/sdd-project-run` Project Factory (a whole project).
+- **sdd-skills** — the spec-driven development (SDD) skill family (28 `sdd-*` skills), including two orchestration layers: the `/sdd-run` Agent Factory (one change) and the `/sdd-project-run` Project Factory (a whole project).
 
 ## Install
 
@@ -96,6 +96,7 @@ Listed roughly in pipeline order.
 | `sdd-shape` | Facilitate discovery, turn an idea into shape-notes |
 | `sdd-prd` | Write the product requirements (PRD) |
 | `sdd-tech-stack-selector` | Pick a starter/stack from the PRD (greenfield) |
+| `sdd-bootstrapper` | Scaffold the chosen starter and audit it (greenfield) |
 | `sdd-stack-assess` | Assess an existing stack for agent-friendliness (brownfield) |
 | `sdd-health-check` | Audit deps/security/tests/CI of an existing project (brownfield) |
 | `sdd-roadmap` | Decompose the PRD into dependency-ordered slices |
@@ -205,5 +206,5 @@ Attended runs preserve every composed skill's human gates. Unattended runs (`--a
 ## Notes
 
 - Versioning is manual — bump `version` in `.claude-plugin/plugin.json` before publishing an update.
-- A few skills reference `/sdd-*` commands that are not shipped here (`sdd-bootstrapper` — the greenfield scaffolder — and the optional `sdd-contract`). `sdd-help` documents them as not-installed; the conceptual step still exists in the method, the command just isn't in this plugin.
+- A few skills reference `/sdd-*` commands that are not shipped here (the optional `sdd-contract`). `sdd-help` documents them as not-installed; the conceptual step still exists in the method, the command just isn't in this plugin.
 - Origin of these skills: extracted from an internal team plugin and genericized for standalone use.
