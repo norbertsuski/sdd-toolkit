@@ -1,13 +1,14 @@
-# sdd-toolkit — Spec-Driven Development for Claude Code & Cursor
+# sdd-toolkit — Spec-Driven Development for Claude Code, Codex & Cursor
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![validate](https://github.com/norbertsuski/sdd-toolkit/actions/workflows/validate.yml/badge.svg)](https://github.com/norbertsuski/sdd-toolkit/actions/workflows/validate.yml)
 ![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-D97757)
+![Codex skills](https://img.shields.io/badge/Codex-skills-412991)
 ![Cursor skills](https://img.shields.io/badge/Cursor-skills-black)
 
 **Turn an idea into a PRD, a roadmap, a phased plan and verified, reviewed code — with AI coding agents that follow the spec instead of drifting from it.**
 
-AI coding agents write code fast, but on anything bigger than a single prompt they lose the thread: requirements get guessed, plans live only in chat history, and nobody checks the result against what was asked. **sdd-toolkit** is a Claude Code plugin (also usable as native Cursor Skills) that makes the spec the source of truth. Every step writes a plain Markdown artifact into a `context/` folder in your repo, and the next step reads it. Requirements, decisions and progress survive across sessions, agents and teammates.
+AI coding agents write code fast, but on anything bigger than a single prompt they lose the thread: requirements get guessed, plans live only in chat history, and nobody checks the result against what was asked. **sdd-toolkit** is a Claude Code plugin (also usable as native Agent Skills in OpenAI Codex and Cursor) that makes the spec the source of truth. Every step writes a plain Markdown artifact into a `context/` folder in your repo, and the next step reads it. Requirements, decisions and progress survive across sessions, agents and teammates.
 
 - **28 `/sdd-*` skills** covering the full lifecycle: discovery → PRD → tech stack → roadmap → research → plan → implement (TDD / E2E) → review → merge request → archive.
 - **Greenfield and brownfield.** Start from an idea, or assess and evolve an existing codebase (stack assessment, health check, test rollout).
@@ -31,7 +32,7 @@ flowchart LR
 ## Contents
 
 - [Quickstart](#quickstart)
-- [Install](#install) · [Update](#update) · [Local testing](#local-testing-no-install) · [Install for Cursor](#install-for-cursor)
+- [Install](#install) · [Update](#update) · [Local testing](#local-testing-no-install) · [Install for Cursor](#install-for-cursor) · [Install for Codex](#install-for-codex)
 - [The SDD skills](#the-sdd-skills)
 - [The Agent Factory (`/sdd-run`)](#the-agent-factory-sdd-run)
 - [The Project Factory (`/sdd-project-run`)](#the-project-factory-sdd-project-run)
@@ -39,7 +40,7 @@ flowchart LR
 
 ## Quickstart
 
-In Claude Code:
+In Claude Code (using Codex or Cursor? see [Install for Codex](#install-for-codex) / [Install for Cursor](#install-for-cursor), and type `$sdd-…` instead of `/sdd-…` in Codex):
 
 ```
 /plugin marketplace add https://github.com/norbertsuski/sdd-toolkit.git
@@ -139,6 +140,35 @@ Notes:
 - Cursor can also import remote skills via **Customize → Remote Rule (GitHub)** with
   this repo's URL (https://github.com/norbertsuski/sdd-toolkit); the `cp -R` above
   (or a local clone) works too.
+
+## Install for Codex
+
+OpenAI Codex (CLI and IDE extension) supports [Agent Skills](https://learn.chatgpt.com/docs/build-skills)
+in the **same `SKILL.md` format** (`name` / `description` frontmatter, optional
+`references/` subfolders). No conversion is needed; copy the skill folders into a
+Codex skills directory:
+
+- **Per project:** `.agents/skills/` in the target repo (Codex checks every
+  `.agents/skills` from the working directory up to the repo root)
+- **All projects:** `~/.agents/skills/` (user-level)
+
+Copy the whole `sdd-*` folders so the cross-skill relative links between them keep
+resolving:
+
+```
+# global (all projects)
+mkdir -p ~/.agents/skills
+cp -R /path/to/sdd-toolkit/skills/sdd-* ~/.agents/skills/
+
+# or per project
+mkdir -p .agents/skills
+cp -R /path/to/sdd-toolkit/skills/sdd-* .agents/skills/
+```
+
+Restart Codex to pick them up. In Codex, skills are invoked with `$` instead of `/`:
+type `$sdd-help` (or open `/skills` and pick one), or let Codex auto-select a skill
+from its `description`. Wherever this README or a skill says `/sdd-<name>`, use
+`$sdd-<name>` in Codex.
 
 ## The SDD skills
 
