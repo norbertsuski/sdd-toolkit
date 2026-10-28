@@ -7,7 +7,9 @@
     {
       "name": "sdd-skills",
       "source": "./",
-      "description": "Spec-driven development (SDD) skill family for Claude Code"
+      "description": "Spec-driven development (SDD) skill family for Claude Code: idea → PRD → roadmap → plan → implement → review, with Agent Factory and Project Factory orchestrators",
+      "category": "development",
+      "keywords": ["spec-driven-development", "sdd", "prd", "planning", "agents", "workflow"]
     }
   ]
 }

@@ -1,8 +1,65 @@
-# sdd-toolkit
+# sdd-toolkit — Spec-Driven Development for Claude Code & Cursor
 
-Personal Claude Code marketplace. Currently ships one plugin:
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![validate](https://github.com/norbertsuski/sdd-toolkit/actions/workflows/validate.yml/badge.svg)](https://github.com/norbertsuski/sdd-toolkit/actions/workflows/validate.yml)
+![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-D97757)
+![Cursor skills](https://img.shields.io/badge/Cursor-skills-black)
 
-- **sdd-skills** — the spec-driven development (SDD) skill family (28 `sdd-*` skills), including two orchestration layers: the `/sdd-run` Agent Factory (one change) and the `/sdd-project-run` Project Factory (a whole project).
+**Turn an idea into a PRD, a roadmap, a phased plan and verified, reviewed code — with AI coding agents that follow the spec instead of drifting from it.**
+
+AI coding agents write code fast, but on anything bigger than a single prompt they lose the thread: requirements get guessed, plans live only in chat history, and nobody checks the result against what was asked. **sdd-toolkit** is a Claude Code plugin (also usable as native Cursor Skills) that makes the spec the source of truth. Every step writes a plain Markdown artifact into a `context/` folder in your repo, and the next step reads it. Requirements, decisions and progress survive across sessions, agents and teammates.
+
+- **28 `/sdd-*` skills** covering the full lifecycle: discovery → PRD → tech stack → roadmap → research → plan → implement (TDD / E2E) → review → merge request → archive.
+- **Greenfield and brownfield.** Start from an idea, or assess and evolve an existing codebase (stack assessment, health check, test rollout).
+- **Agent Factory (`/sdd-run`).** Drives one change end-to-end: routes missing preparation, picks single-agent vs. multi-agent execution, sizes model/effort per phase, verifies independently, and resumes after interruption.
+- **Project Factory (`/sdd-project-run`).** Drives a whole roadmap, one change at a time, with replanning and an append-only project log.
+- **Human gates stay in.** Attended runs pause for your decisions; unattended runs stop honestly instead of guessing.
+
+```mermaid
+flowchart LR
+  shape["/sdd-shape<br/>idea → notes"] --> prd["/sdd-prd<br/>requirements"]
+  prd --> stack["/sdd-tech-stack-selector<br/>/sdd-bootstrapper"]
+  stack --> roadmap["/sdd-roadmap<br/>vertical slices"]
+  roadmap --> plan["/sdd-research<br/>/sdd-plan"]
+  plan --> impl["/sdd-implement<br/>/sdd-tdd · /sdd-e2e"]
+  impl --> review["/sdd-impl-review"]
+  review --> mr["/sdd-mr<br/>/sdd-archive"]
+  run(["/sdd-run — Agent Factory"]) -.drives one change.-> plan
+  proj(["/sdd-project-run — Project Factory"]) -.drives the roadmap.-> roadmap
+```
+
+## Contents
+
+- [Quickstart](#quickstart)
+- [Install](#install) · [Update](#update) · [Local testing](#local-testing-no-install) · [Install for Cursor](#install-for-cursor)
+- [The SDD skills](#the-sdd-skills)
+- [The Agent Factory (`/sdd-run`)](#the-agent-factory-sdd-run)
+- [The Project Factory (`/sdd-project-run`)](#the-project-factory-sdd-project-run)
+- [Notes](#notes) · [License](#license)
+
+## Quickstart
+
+In Claude Code:
+
+```
+/plugin marketplace add https://github.com/norbertsuski/sdd-toolkit.git
+/plugin install sdd-skills@sdd-toolkit
+```
+
+Then, in any project:
+
+```
+/sdd-help                       # the map: which skill to run, in what order
+/sdd-init                       # create the context/ folder for SDD artifacts
+/sdd-shape                      # talk an idea (or a brownfield change) into shape-notes
+/sdd-prd                        # turn the notes into a PRD
+/sdd-roadmap                    # split the PRD into dependency-ordered slices
+/sdd-project-run                # or let the Project Factory drive it from here
+```
+
+Unsure where you are? `/sdd-help <project>` reports the current stage and the single next command.
+
+This repo is a Claude Code plugin marketplace. It currently ships one plugin, **sdd-skills**: the spec-driven development (SDD) skill family (28 `sdd-*` skills), including two orchestration layers, the `/sdd-run` Agent Factory (one change) and the `/sdd-project-run` Project Factory (a whole project).
 
 ## Install
 
@@ -208,3 +265,18 @@ Attended runs preserve every composed skill's human gates. Unattended runs (`--a
 - Versioning is manual — bump `version` in `.claude-plugin/plugin.json` before publishing an update.
 - A few skills reference `/sdd-*` commands that are not shipped here (the optional `sdd-contract`). `sdd-help` documents them as not-installed; the conceptual step still exists in the method, the command just isn't in this plugin.
 - Origin of these skills: extracted from an internal team plugin and genericized for standalone use.
+
+## Contributing
+
+Issues and pull requests are welcome. Before opening a PR, run the same checks CI runs:
+
+```
+bash scripts/validate-structure.sh
+bash scripts/validate-orchestration-evals.sh
+```
+
+If sdd-toolkit helps you ship, a ⭐ on GitHub helps other people find it.
+
+## License
+
+[MIT](LICENSE) © 2026 Norbert Suski

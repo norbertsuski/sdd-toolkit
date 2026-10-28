@@ -1,9 +1,24 @@
 {
   "name": "sdd-skills",
   "version": "0.5.0",
-  "description": "Spec-driven development (SDD) skill family for Claude Code",
+  "description": "Spec-driven development (SDD) skill family for Claude Code: idea → PRD → roadmap → plan → implement → review, with Agent Factory and Project Factory orchestrators",
   "author": {
     "name": "Norbert Suski"
   },
-  "repository": "https://github.com/norbertsuski/sdd-toolkit"
+  "homepage": "https://github.com/norbertsuski/sdd-toolkit",
+  "repository": "https://github.com/norbertsuski/sdd-toolkit",
+  "license": "MIT",
+  "keywords": [
+    "spec-driven-development",
+    "sdd",
+    "prd",
+    "roadmap",
+    "planning",
+    "tdd",
+    "code-review",
+    "agents",
+    "orchestration",
+    "workflow",
+    "skills"
+  ]
 }
